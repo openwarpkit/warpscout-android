@@ -25,6 +25,7 @@ import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -74,6 +75,18 @@ internal data class ReportEndpoint(
     val working: Boolean,
     val durable: Boolean
 )
+
+internal enum class ReportColumn(val label: Int, val width: Dp) {
+    Status(R.string.report_status, 68.dp),
+    Endpoint(R.string.report_endpoint, 154.dp),
+    EndpointPing(R.string.endpoint_ping, 78.dp),
+    TunnelPing(R.string.tunnel_ping, 78.dp),
+    Loss(R.string.loss, 54.dp),
+    Region(R.string.seen_as, 78.dp),
+    Node(R.string.node, 52.dp),
+    NodeLocation(R.string.node_location, 128.dp),
+    Speed(R.string.speed, 84.dp)
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -160,6 +173,10 @@ private fun ReportContent(
     val working = results.count { it.working && it.durable }
     val tableScroll = rememberScrollState()
     var tableExpanded by rememberSaveable(item.id) { mutableStateOf(false) }
+    var hideEmptyColumns by rememberSaveable(item.id) { mutableStateOf(true) }
+    val visibleColumns = remember(results, hideEmptyColumns) {
+        visibleReportColumns(results, hideEmptyColumns)
+    }
 
     LazyColumn(
         modifier = modifier,
@@ -185,16 +202,26 @@ private fun ReportContent(
                         Text(stringResource(R.string.share_txt))
                     }
                 }
-                OutlinedButton(onClick = { tableExpanded = !tableExpanded }) {
-                    Icon(
-                        if (tableExpanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
-                        contentDescription = null
-                    )
-                    Text(
-                        stringResource(
-                            if (tableExpanded) R.string.hide_report_table else R.string.show_report_table
-                        ),
-                        modifier = Modifier.padding(start = 8.dp)
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(onClick = { tableExpanded = !tableExpanded }) {
+                        Icon(
+                            if (tableExpanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
+                            contentDescription = null
+                        )
+                        Text(
+                            stringResource(
+                                if (tableExpanded) R.string.hide_report_table else R.string.show_report_table
+                            ),
+                            modifier = Modifier.padding(start = 8.dp)
+                        )
+                    }
+                    FilterChip(
+                        selected = hideEmptyColumns,
+                        onClick = { hideEmptyColumns = !hideEmptyColumns },
+                        label = { Text(stringResource(R.string.hide_empty_columns)) }
                     )
                 }
             }
@@ -207,7 +234,7 @@ private fun ReportContent(
                         .fillMaxWidth()
                         .horizontalScroll(tableScroll)
                 ) {
-                    ReportHeader()
+                    ReportHeader(visibleColumns)
                 }
             }
             items(results, key = { "report-${it.endpoint}" }) { endpoint ->
@@ -216,7 +243,7 @@ private fun ReportContent(
                         .fillMaxWidth()
                         .horizontalScroll(tableScroll)
                 ) {
-                    ReportTableRow(endpoint)
+                    ReportTableRow(endpoint, visibleColumns)
                 }
                 HorizontalDivider()
             }
@@ -362,27 +389,19 @@ private fun ConfigButton(label: Int, format: String, enabled: Boolean, onConfig:
 }
 
 @Composable
-private fun ReportHeader() {
+private fun ReportHeader(columns: List<ReportColumn>) {
     Row(
         modifier = Modifier
-            .width(774.dp)
+            .width(columns.tableWidth())
             .background(MaterialTheme.colorScheme.surfaceVariant)
             .padding(vertical = 7.dp)
     ) {
-        HeaderCell(R.string.report_status, 68.dp)
-        HeaderCell(R.string.report_endpoint, 154.dp)
-        HeaderCell(R.string.endpoint_ping, 78.dp)
-        HeaderCell(R.string.tunnel_ping, 78.dp)
-        HeaderCell(R.string.loss, 54.dp)
-        HeaderCell(R.string.seen_as, 78.dp)
-        HeaderCell(R.string.node, 52.dp)
-        HeaderCell(R.string.node_location, 128.dp)
-        HeaderCell(R.string.speed, 84.dp)
+        columns.forEach { HeaderCell(it.label, it.width) }
     }
 }
 
 @Composable
-private fun ReportTableRow(result: ReportEndpoint) {
+private fun ReportTableRow(result: ReportEndpoint, columns: List<ReportColumn>) {
     val background = when {
         !result.working -> MaterialTheme.colorScheme.surface
         result.durable -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.28f)
@@ -390,31 +409,78 @@ private fun ReportTableRow(result: ReportEndpoint) {
     }
     Row(
         modifier = Modifier
-            .width(774.dp)
+            .width(columns.tableWidth())
             .background(background)
             .padding(vertical = 7.dp)
     ) {
-        DataCell(
-            text = when {
-                !result.working -> stringResource(R.string.status_failed)
-                result.durable -> stringResource(R.string.status_working)
-                else -> stringResource(R.string.status_torn_down)
-            },
-            width = 68.dp,
-            color = when {
-                !result.working -> MaterialTheme.colorScheme.error
-                result.durable -> MaterialTheme.colorScheme.primary
-                else -> MaterialTheme.colorScheme.tertiary
+        columns.forEach { column ->
+            when (column) {
+                ReportColumn.Status -> DataCell(
+                    text = when {
+                        !result.working -> stringResource(R.string.status_failed)
+                        result.durable -> stringResource(R.string.status_working)
+                        else -> stringResource(R.string.status_torn_down)
+                    },
+                    width = column.width,
+                    color = when {
+                        !result.working -> MaterialTheme.colorScheme.error
+                        result.durable -> MaterialTheme.colorScheme.primary
+                        else -> MaterialTheme.colorScheme.tertiary
+                    }
+                )
+                ReportColumn.Endpoint -> DataCell(result.endpoint, column.width, monospace = true)
+                ReportColumn.EndpointPing -> DataCell(
+                    formatLatency(result.endpointPingMs),
+                    column.width,
+                    monospace = true
+                )
+                ReportColumn.TunnelPing -> DataCell(
+                    formatLatency(result.tunnelPingMs),
+                    column.width,
+                    monospace = true
+                )
+                ReportColumn.Loss -> DataCell(
+                    formatPercent(result.lossPercent, result.tunnelPingMs > 0),
+                    column.width,
+                    monospace = true
+                )
+                ReportColumn.Region -> DataCell(withFlag(result.region, result.region), column.width)
+                ReportColumn.Node -> DataCell(
+                    result.node.ifBlank { "-" },
+                    column.width,
+                    monospace = true
+                )
+                ReportColumn.NodeLocation -> DataCell(
+                    withFlag(result.country, result.nodeLocation),
+                    column.width
+                )
+                ReportColumn.Speed -> DataCell(
+                    formatSpeed(result.speedMbps),
+                    column.width,
+                    monospace = true
+                )
             }
-        )
-        DataCell(result.endpoint, 154.dp, monospace = true)
-        DataCell(formatLatency(result.endpointPingMs), 78.dp, monospace = true)
-        DataCell(formatLatency(result.tunnelPingMs), 78.dp, monospace = true)
-        DataCell(formatPercent(result.lossPercent, result.tunnelPingMs > 0), 54.dp, monospace = true)
-        DataCell(withFlag(result.region, result.region), 78.dp)
-        DataCell(result.node.ifBlank { "-" }, 52.dp, monospace = true)
-        DataCell(withFlag(result.country, result.nodeLocation), 128.dp)
-        DataCell(formatSpeed(result.speedMbps), 84.dp, monospace = true)
+        }
+    }
+}
+
+private fun List<ReportColumn>.tableWidth(): Dp = fold(0.dp) { total, column -> total + column.width }
+
+internal fun visibleReportColumns(
+    results: List<ReportEndpoint>,
+    hideEmptyColumns: Boolean
+): List<ReportColumn> {
+    if (!hideEmptyColumns) return ReportColumn.entries
+    return ReportColumn.entries.filter { column ->
+        when (column) {
+            ReportColumn.Status, ReportColumn.Endpoint -> true
+            ReportColumn.EndpointPing -> results.any { it.endpointPingMs > 0 }
+            ReportColumn.TunnelPing, ReportColumn.Loss -> results.any { it.tunnelPingMs > 0 }
+            ReportColumn.Region -> results.any { it.region.isNotBlank() }
+            ReportColumn.Node -> results.any { it.node.isNotBlank() }
+            ReportColumn.NodeLocation -> results.any { it.country.isNotBlank() || it.nodeLocation.isNotBlank() }
+            ReportColumn.Speed -> results.any { it.speedMbps > 0 }
+        }
     }
 }
 

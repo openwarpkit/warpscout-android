@@ -137,6 +137,7 @@
     <string name="share_txt">Share</string>
     <string name="show_report_table">Show report table</string>
     <string name="hide_report_table">Hide report table</string>
+    <string name="hide_empty_columns">Hide empty columns</string>
     <string name="configuration_section">Configuration</string>
     <string name="report_status">Status</string>
     <string name="report_endpoint">Endpoint</string>

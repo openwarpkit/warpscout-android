@@ -137,6 +137,7 @@
     <string name="share_txt">Поделиться</string>
     <string name="show_report_table">Развернуть таблицу отчёта</string>
     <string name="hide_report_table">Свернуть таблицу отчёта</string>
+    <string name="hide_empty_columns">Скрыть пустые столбцы</string>
     <string name="configuration_section">Конфигурация</string>
     <string name="report_status">Статус</string>
     <string name="report_endpoint">Адрес</string>

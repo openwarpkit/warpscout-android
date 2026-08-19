@@ -23,4 +23,34 @@ class ReportScreenTest {
         assertEquals("-", formatPercent(0.0, measured = false))
         assertEquals("0%", formatPercent(0.0, measured = true))
     }
+
+    @Test
+    fun hidesColumnsWithoutAnyMeasurements() {
+        val result = ReportEndpoint(
+            endpoint = "example:2408",
+            region = "FI",
+            node = "HEL",
+            country = "FI",
+            nodeLocation = "Helsinki, FI",
+            endpointPingMs = 12.0,
+            tunnelPingMs = 0.0,
+            lossPercent = 0.0,
+            speedMbps = 0.0,
+            working = true,
+            durable = true
+        )
+
+        assertEquals(
+            listOf(
+                ReportColumn.Status,
+                ReportColumn.Endpoint,
+                ReportColumn.EndpointPing,
+                ReportColumn.Region,
+                ReportColumn.Node,
+                ReportColumn.NodeLocation
+            ),
+            visibleReportColumns(listOf(result), hideEmptyColumns = true)
+        )
+        assertEquals(ReportColumn.entries, visibleReportColumns(listOf(result), hideEmptyColumns = false))
+    }
 }
