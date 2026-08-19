@@ -133,13 +133,24 @@ jobs:
       - name: Create release notes
         if: env.PUBLISH_RELEASE == 'true'
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
+          git fetch --force origin "refs/tags/${GITHUB_REF_NAME}:refs/tags/${GITHUB_REF_NAME}"
           PREVIOUS=$(git tag --list 'android-v*' --sort=-version:refname | sed "/^${GITHUB_REF_NAME}$/d" | head -n 1)
           RANGE="${PREVIOUS:+$PREVIOUS..}${GITHUB_REF_NAME}"
+          NOTE=$(git tag -l --format='%(contents:body)' "$GITHUB_REF_NAME")
           {
             printf 'Upstream core: `%s` (`%s`)\n\n' "$WARPSCOUT_UPSTREAM_TAG" "$WARPSCOUT_UPSTREAM_COMMIT"
-            printf '## Android changes\n\n'
-            git -P log --no-merges --pretty='- %s (`%h`)' "$RANGE" -- android mobileapi core internal/warpscout/mobile_backend.go scripts .github/workflows/android-release.yaml
+            [ -n "$NOTE" ] && printf '%s\n\n' "$NOTE"
+            printf '## Commits\n\n'
+            git -P log --no-merges \
+              --pretty="- %s ([\`%h\`](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/%H))" \
+              "$RANGE" -- android mobileapi core internal/warpscout/mobile_backend.go scripts .github/workflows/android-release.yaml
+            printf '\n'
+            gh api "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
+              -f tag_name="${GITHUB_REF_NAME}" ${PREVIOUS:+-f previous_tag_name="$PREVIOUS"} \
+              --jq .body | sed -n '/^## New Contributors/,$p'
           } > release-notes.md
       - uses: actions/upload-artifact@v4
         if: env.PUBLISH_RELEASE != 'true'
