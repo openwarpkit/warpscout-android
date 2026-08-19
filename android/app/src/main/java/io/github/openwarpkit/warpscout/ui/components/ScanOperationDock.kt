@@ -38,6 +38,7 @@ import io.github.openwarpkit.warpscout.R
 import io.github.openwarpkit.warpscout.core.OperationState
 
 private val ScanDockControlSize = 72.dp
+private val ScanDockIconSize = 40.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -68,7 +69,8 @@ fun ScanStartButton(
         ) {
             Icon(
                 Icons.Filled.PlayArrow,
-                contentDescription = stringResource(R.string.start_scan)
+                contentDescription = stringResource(R.string.start_scan),
+                modifier = Modifier.size(ScanDockIconSize)
             )
         }
     }
@@ -168,11 +170,13 @@ fun ScanOperationDock(
                         }
                         failed -> Icon(
                             Icons.Filled.Close,
-                            contentDescription = stringResource(R.string.dismiss)
+                            contentDescription = stringResource(R.string.dismiss),
+                            modifier = Modifier.size(ScanDockIconSize)
                         )
                         else -> Icon(
                             Icons.Filled.Check,
-                            contentDescription = stringResource(R.string.dismiss)
+                            contentDescription = stringResource(R.string.dismiss),
+                            modifier = Modifier.size(ScanDockIconSize)
                         )
                     }
                 }
