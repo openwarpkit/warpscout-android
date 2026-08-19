@@ -35,7 +35,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -91,6 +90,7 @@ private fun MainNavigation(viewModel: AppViewModel) {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
+    val selectedPrimaryRoute = primaryRouteFor(currentDestination?.route)
     val operation by viewModel.operation.collectAsStateWithLifecycle()
     var highlightedHistoryId by rememberSaveable { mutableStateOf<Long?>(null) }
     val showScanDock = operation.operation == "scan"
@@ -110,7 +110,7 @@ private fun MainNavigation(viewModel: AppViewModel) {
                     containerColor = MaterialTheme.colorScheme.background
                 ) {
                     destinations.forEach { destination ->
-                        val selected = currentDestination?.hierarchy?.any { it.route == destination.route } == true
+                        val selected = selectedPrimaryRoute == destination.route
                         NavigationRailItem(
                             selected = selected,
                             onClick = { navController.navigatePrimary(destination.route) },
@@ -149,20 +149,18 @@ private fun MainNavigation(viewModel: AppViewModel) {
                                 onOpenHistory = openLatestHistory
                             )
                         }
-                        if (destinations.any { it.route == currentDestination?.route }) {
-                            NavigationBar(
-                                containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                                tonalElevation = 0.dp
-                            ) {
-                                destinations.forEach { destination ->
-                                    val selected = currentDestination?.hierarchy?.any { it.route == destination.route } == true
-                                    NavigationBarItem(
-                                        selected = selected,
-                                        onClick = { navController.navigatePrimary(destination.route) },
-                                        icon = { Icon(destination.icon, contentDescription = null) },
-                                        label = { androidx.compose.material3.Text(stringResource(destination.label)) }
-                                    )
-                                }
+                        NavigationBar(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                            tonalElevation = 0.dp
+                        ) {
+                            destinations.forEach { destination ->
+                                val selected = selectedPrimaryRoute == destination.route
+                                NavigationBarItem(
+                                    selected = selected,
+                                    onClick = { navController.navigatePrimary(destination.route) },
+                                    icon = { Icon(destination.icon, contentDescription = null) },
+                                    label = { androidx.compose.material3.Text(stringResource(destination.label)) }
+                                )
                             }
                         }
                     }
@@ -223,6 +221,17 @@ private fun AppNavHost(
             }
         }
     }
+}
+
+private fun primaryRouteFor(route: String?): String? = when {
+    route == "scan" -> "scan"
+    route == "history" -> "history"
+    route == "tools" -> "tools"
+    route == "settings" -> "settings"
+    route == "about" -> "settings"
+    route?.startsWith("report/") == true -> "history"
+    route?.startsWith("config/") == true -> "history"
+    else -> null
 }
 
 private fun androidx.navigation.NavHostController.navigatePrimary(route: String) {
