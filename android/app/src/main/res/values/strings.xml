@@ -129,9 +129,14 @@
     <string name="language_english">English</string>
     <string name="view_report">View report</string>
     <string name="report_title">Scan report</string>
+    <string name="report_title_with_date">Report %1$s</string>
+    <string name="report_section">Report</string>
     <string name="report_summary">%1$d working of %2$d checked</string>
-    <string name="open_txt">Open TXT</string>
-    <string name="share_txt">Share TXT</string>
+    <string name="open_txt">Open</string>
+    <string name="share_txt">Share</string>
+    <string name="show_report_table">Show report table</string>
+    <string name="hide_report_table">Hide report table</string>
+    <string name="configuration_section">Configuration</string>
     <string name="report_status">Status</string>
     <string name="report_endpoint">Endpoint</string>
     <string name="endpoint_ping">Endpoint ping</string>

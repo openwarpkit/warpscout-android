@@ -193,8 +193,7 @@ private fun AppNavHost(
             HistoryScreen(
                 viewModel = viewModel,
                 highlightedId = highlightedHistoryId,
-                onViewReport = { historyId -> navController.navigate("report/$historyId") },
-                onViewConfig = { historyId, format -> navController.navigate("config/$historyId/$format") }
+                onOpenReport = { historyId -> navController.navigate("report/$historyId") }
             )
         }
         composable("tools") { ToolsScreen(viewModel) }
@@ -203,7 +202,12 @@ private fun AppNavHost(
         composable("report/{historyId}") { entry ->
             val historyId = entry.arguments?.getString("historyId")?.toLongOrNull()
             if (historyId != null) {
-                ReportScreen(viewModel, historyId, onBack = { navController.popBackStack() })
+                ReportScreen(
+                    viewModel = viewModel,
+                    historyId = historyId,
+                    onBack = { navController.popBackStack() },
+                    onViewConfig = { format -> navController.navigate("config/$historyId/$format") }
+                )
             }
         }
         composable("config/{historyId}/{format}") { entry ->

@@ -129,9 +129,14 @@
     <string name="language_english">English</string>
     <string name="view_report">Просмотреть отчёт</string>
     <string name="report_title">Отчёт сканирования</string>
+    <string name="report_title_with_date">Отчёт %1$s</string>
+    <string name="report_section">Отчёт</string>
     <string name="report_summary">Рабочих %1$d из %2$d проверенных</string>
-    <string name="open_txt">Открыть TXT</string>
-    <string name="share_txt">Поделиться TXT</string>
+    <string name="open_txt">Открыть</string>
+    <string name="share_txt">Поделиться</string>
+    <string name="show_report_table">Развернуть таблицу отчёта</string>
+    <string name="hide_report_table">Свернуть таблицу отчёта</string>
+    <string name="configuration_section">Конфигурация</string>
     <string name="report_status">Статус</string>
     <string name="report_endpoint">Адрес</string>
     <string name="endpoint_ping">Пинг адреса</string>
