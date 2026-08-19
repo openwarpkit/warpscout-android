@@ -21,6 +21,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Fetch recorded upstream tag
+        run: |
+          git remote add upstream https://github.com/vernette/warpscout.git
+          UPSTREAM_TAG=$(sed -n 's/^- Upstream tag: `\([^`]*\)`.*/\1/p' UPSTREAM.md)
+          git fetch --no-tags upstream "refs/tags/$UPSTREAM_TAG:refs/tags/$UPSTREAM_TAG"
       - name: Resolve version
         shell: bash
         run: |

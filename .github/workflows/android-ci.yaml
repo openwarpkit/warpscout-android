@@ -25,6 +25,11 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - name: Fetch recorded upstream tag
+        run: |
+          git remote add upstream https://github.com/vernette/warpscout.git
+          UPSTREAM_TAG=$(sed -n 's/^- Upstream tag: `\([^`]*\)`.*/\1/p' UPSTREAM.md)
+          git fetch --no-tags upstream "refs/tags/$UPSTREAM_TAG:refs/tags/$UPSTREAM_TAG"
       - name: Go tests and CLI regression tests
         run: |
           node scripts/check-upstream-sync.mjs
@@ -34,7 +39,6 @@ jobs:
       - name: Verify synchronized upstream head
         if: startsWith(github.head_ref, 'chore/sync-upstream-')
         run: |
-          git remote add upstream https://github.com/vernette/warpscout.git
           git fetch --no-tags upstream master
           node scripts/check-upstream-sync.mjs --require-ref upstream/master
 
