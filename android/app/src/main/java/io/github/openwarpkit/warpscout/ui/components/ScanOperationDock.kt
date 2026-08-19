@@ -54,19 +54,19 @@ fun ScanStartButton(
             onClick = { if (enabled) onClick() },
             modifier = Modifier.size(56.dp),
             containerColor = if (enabled) {
-                MaterialTheme.colorScheme.primaryContainer
+                MaterialTheme.colorScheme.primary
             } else {
                 MaterialTheme.colorScheme.surfaceVariant
+            },
+            contentColor = if (enabled) {
+                MaterialTheme.colorScheme.onPrimary
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
             }
         ) {
             Icon(
                 Icons.Filled.PlayArrow,
-                contentDescription = stringResource(R.string.start_scan),
-                tint = if (enabled) {
-                    MaterialTheme.colorScheme.onPrimaryContainer
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                }
+                contentDescription = stringResource(R.string.start_scan)
             )
         }
     }
@@ -147,14 +147,16 @@ fun ScanOperationDock(
             ) {
                 FloatingActionButton(
                     onClick = if (state.running) onStop else onDismiss,
-                    modifier = Modifier.size(56.dp)
+                    modifier = Modifier.size(56.dp),
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
                 ) {
                     when {
                         state.running -> Box(contentAlignment = Alignment.Center) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(34.dp),
                                 strokeWidth = 3.dp,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                                color = MaterialTheme.colorScheme.onPrimary
                             )
                             Icon(
                                 Icons.Filled.Stop,
