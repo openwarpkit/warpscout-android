@@ -14,6 +14,13 @@ Build and test:
 .\scripts\build-android-local.ps1
 ```
 
+After changing Go code in `core/`, `internal/warpscout/`, or `mobileapi/`, rebuild the Android AAR before Gradle:
+
+```powershell
+.\scripts\build-mobile.ps1
+.\scripts\build-android-local.ps1
+```
+
 Build, test, and install without clearing application data:
 
 ```powershell

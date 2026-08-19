@@ -36,13 +36,18 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "go install failed with exit code $LASTEXITCODE" }
     gomobile init
     if ($LASTEXITCODE -ne 0) { throw "gomobile init failed with exit code $LASTEXITCODE" }
-    gomobile bind `
-        "-target=android/arm64,android/arm,android/amd64" `
-        "-androidapi=26" `
-        -ldflags="-X github.com/vernette/warpscout/mobileapi.coreVersion=$coreVersion -X github.com/vernette/warpscout/mobileapi.upstreamVersion=$upstreamVersion" `
-        -o (Join-Path $outputDirectory "warpscout.aar") `
-        (Join-Path $projectRoot "mobileapi")
-    if ($LASTEXITCODE -ne 0) { throw "gomobile bind failed with exit code $LASTEXITCODE" }
+    Push-Location $projectRoot
+    try {
+        gomobile bind `
+            "-target=android/arm64,android/arm,android/amd64" `
+            "-androidapi=26" `
+            -ldflags="-X github.com/vernette/warpscout/mobileapi.coreVersion=$coreVersion -X github.com/vernette/warpscout/mobileapi.upstreamVersion=$upstreamVersion" `
+            -o (Join-Path $outputDirectory "warpscout.aar") `
+            "./mobileapi"
+        if ($LASTEXITCODE -ne 0) { throw "gomobile bind failed with exit code $LASTEXITCODE" }
+    } finally {
+        Pop-Location
+    }
 } finally {
     if ($temporarySDKDrive) {
         subst.exe $temporarySDKDrive /D
