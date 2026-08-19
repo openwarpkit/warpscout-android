@@ -6,7 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
@@ -37,6 +37,8 @@ import androidx.compose.ui.unit.dp
 import io.github.openwarpkit.warpscout.R
 import io.github.openwarpkit.warpscout.core.OperationState
 
+private val ScanDockControlSize = 72.dp
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ScanStartButton(
@@ -52,7 +54,7 @@ fun ScanStartButton(
     ) {
         FloatingActionButton(
             onClick = { if (enabled) onClick() },
-            modifier = Modifier.size(56.dp),
+            modifier = Modifier.size(ScanDockControlSize),
             containerColor = if (enabled) {
                 MaterialTheme.colorScheme.primary
             } else {
@@ -93,7 +95,7 @@ fun ScanOperationDock(
         Surface(
             modifier = Modifier
                 .weight(3f)
-                .heightIn(min = 56.dp)
+                .height(ScanDockControlSize)
                 .clickable(
                     enabled = finished && state.historyId != null,
                     onClick = onOpenHistory
@@ -147,7 +149,7 @@ fun ScanOperationDock(
             ) {
                 FloatingActionButton(
                     onClick = if (state.running) onStop else onDismiss,
-                    modifier = Modifier.size(56.dp),
+                    modifier = Modifier.size(ScanDockControlSize),
                     containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = MaterialTheme.colorScheme.onPrimary
                 ) {
