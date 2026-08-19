@@ -10,7 +10,6 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $buildRoot = Join-Path ([System.IO.Path]::GetTempPath()) 'warpscout-android-build'
 $expectedTarget = [System.IO.Path]::GetFullPath($repoRoot).TrimEnd('\')
-$createdJunction = $false
 
 if (Test-Path -LiteralPath $buildRoot) {
     $existing = Get-Item -LiteralPath $buildRoot -Force
@@ -20,7 +19,6 @@ if (Test-Path -LiteralPath $buildRoot) {
     }
 } else {
     New-Item -ItemType Junction -Path $buildRoot -Target $repoRoot | Out-Null
-    $createdJunction = $true
 }
 
 $androidHome = Join-Path $buildRoot '.cache\android-sdk'
@@ -39,46 +37,36 @@ if ($Clean) {
 }
 $gradleTasks.AddRange([string[]]$Tasks)
 
+$env:ANDROID_HOME = $androidHome
+$env:ANDROID_SDK_ROOT = $androidHome
+$env:ANDROID_USER_HOME = $androidUserHome
+if (Test-Path -LiteralPath $debugKeystore) {
+    $env:WARPSCOUT_DEBUG_KEYSTORE = $debugKeystore
+}
+
+Push-Location $androidProject
 try {
-    $env:ANDROID_HOME = $androidHome
-    $env:ANDROID_SDK_ROOT = $androidHome
-    $env:ANDROID_USER_HOME = $androidUserHome
-    if (Test-Path -LiteralPath $debugKeystore) {
-        $env:WARPSCOUT_DEBUG_KEYSTORE = $debugKeystore
-    }
-
-    Push-Location $androidProject
-    try {
-        & .\gradlew.bat --no-daemon --gradle-user-home $gradleHome @gradleTasks
-        if ($LASTEXITCODE -ne 0) {
-            throw "Gradle failed with exit code $LASTEXITCODE"
-        }
-    } finally {
-        Pop-Location
-    }
-
-    if ($Install) {
-        $adb = Join-Path $androidHome 'platform-tools\adb.exe'
-        $apk = Join-Path $androidProject 'app\build\outputs\apk\debug\app-universal-debug.apk'
-        if (-not (Test-Path -LiteralPath $apk)) {
-            throw "Debug APK is missing: $apk"
-        }
-
-        $adbArguments = @()
-        if ($Serial) {
-            $adbArguments += @('-s', $Serial)
-        }
-        & $adb @adbArguments install -r $apk
-        if ($LASTEXITCODE -ne 0) {
-            throw "ADB install failed with exit code $LASTEXITCODE"
-        }
+    & .\gradlew.bat --no-daemon --gradle-user-home $gradleHome @gradleTasks
+    if ($LASTEXITCODE -ne 0) {
+        throw "Gradle failed with exit code $LASTEXITCODE"
     }
 } finally {
-    if ($createdJunction -and (Test-Path -LiteralPath $buildRoot)) {
-        $link = Get-Item -LiteralPath $buildRoot -Force
-        $linkTarget = @($link.Target) | Select-Object -First 1
-        if ($link.LinkType -eq 'Junction' -and [System.IO.Path]::GetFullPath($linkTarget).TrimEnd('\') -eq $expectedTarget) {
-            Remove-Item -LiteralPath $buildRoot
-        }
+    Pop-Location
+}
+
+if ($Install) {
+    $adb = Join-Path $androidHome 'platform-tools\adb.exe'
+    $apk = Join-Path $androidProject 'app\build\outputs\apk\debug\app-universal-debug.apk'
+    if (-not (Test-Path -LiteralPath $apk)) {
+        throw "Debug APK is missing: $apk"
+    }
+
+    $adbArguments = @()
+    if ($Serial) {
+        $adbArguments += @('-s', $Serial)
+    }
+    & $adb @adbArguments install -r $apk
+    if ($LASTEXITCODE -ne 0) {
+        throw "ADB install failed with exit code $LASTEXITCODE"
     }
 }
