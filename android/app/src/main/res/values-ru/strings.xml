@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">WARPSCOUT</string>
+    <string name="app_name">WarpScout</string>
     <string name="nav_scan">Сканирование</string>
     <string name="nav_history">История</string>
     <string name="nav_tools">Инструменты</string>
