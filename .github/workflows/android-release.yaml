@@ -1,0 +1,149 @@
+name: android-release
+
+on:
+  push:
+    tags: ["android-v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Resolve version
+        shell: bash
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            echo "WARPSCOUT_VERSION_NAME=0.0.0-dispatch" >> "$GITHUB_ENV"
+            echo "WARPSCOUT_VERSION_CODE=1" >> "$GITHUB_ENV"
+            echo "PUBLISH_RELEASE=false" >> "$GITHUB_ENV"
+          else
+            [[ "$GITHUB_REF_NAME" =~ ^android-v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]
+            MAJOR=${BASH_REMATCH[1]}
+            MINOR=${BASH_REMATCH[2]}
+            PATCH=${BASH_REMATCH[3]}
+            (( MINOR <= 999 && PATCH <= 999 ))
+            echo "WARPSCOUT_VERSION_NAME=$MAJOR.$MINOR.$PATCH" >> "$GITHUB_ENV"
+            echo "WARPSCOUT_VERSION_CODE=$((MAJOR * 1000000 + MINOR * 1000 + PATCH))" >> "$GITHUB_ENV"
+            echo "PUBLISH_RELEASE=true" >> "$GITHUB_ENV"
+          fi
+          echo "WARPSCOUT_UPSTREAM_TAG=$(sed -n 's/^- Upstream tag: `\([^`]*\)`.*/\1/p' UPSTREAM.md)" >> "$GITHUB_ENV"
+          echo "WARPSCOUT_UPSTREAM_COMMIT=$(sed -n 's/^- Upstream commit: `\([^`]*\)`.*/\1/p' UPSTREAM.md)" >> "$GITHUB_ENV"
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Install Android SDK packages
+        run: sdkmanager --channel=3 "platforms;android-26" "platforms;android-37.0" "build-tools;36.0.0" "ndk;28.2.13676358"
+      - name: Verify documentation
+        if: env.PUBLISH_RELEASE == 'true'
+        env:
+          REQUIRE_SCREENSHOTS: "1"
+        run: node scripts/check-readme.mjs
+      - name: Test Go packages and CLI
+        run: |
+          node scripts/check-upstream-sync.mjs
+          go test ./...
+      - name: Build Go Mobile AAR
+        env:
+          WARPSCOUT_CORE_VERSION: ${{ env.WARPSCOUT_VERSION_NAME }}
+        run: ./scripts/build-mobile.sh
+      - name: Decode release keystore
+        if: env.PUBLISH_RELEASE == 'true'
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          test -n "$ANDROID_KEYSTORE_BASE64"
+          test -n "$ANDROID_KEY_ALIAS"
+          test -n "$ANDROID_KEYSTORE_PASSWORD"
+          test -n "$ANDROID_KEY_PASSWORD"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.keystore"
+          echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+      - name: Build release APKs
+        run: bash android/gradlew -p android :app:testDebugUnitTest :app:lintRelease :app:assembleRelease
+      - name: Collect APKs and mapping
+        shell: bash
+        run: |
+          mkdir -p dist
+          VERSION="$WARPSCOUT_VERSION_NAME"
+          find android/app/build/outputs/apk/release -name '*arm64-v8a-release*.apk' -exec cp {} "dist/warpscout-android_${VERSION}_arm64-v8a.apk" \;
+          find android/app/build/outputs/apk/release -name '*armeabi-v7a-release*.apk' -exec cp {} "dist/warpscout-android_${VERSION}_armeabi-v7a.apk" \;
+          find android/app/build/outputs/apk/release -name '*x86_64-release*.apk' -exec cp {} "dist/warpscout-android_${VERSION}_x86_64.apk" \;
+          find android/app/build/outputs/apk/release -name '*universal-release*.apk' -exec cp {} "dist/warpscout-android_${VERSION}_universal.apk" \;
+          cp THIRD_PARTY_NOTICES.md dist/
+          if [[ -f android/app/build/outputs/mapping/release/mapping.txt ]]; then
+            cp android/app/build/outputs/mapping/release/mapping.txt dist/R8-mapping.txt
+          fi
+      - name: Verify signatures
+        if: env.PUBLISH_RELEASE == 'true'
+        run: for apk in dist/*.apk; do "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$apk"; done
+      - name: Verify native libraries
+        shell: bash
+        run: |
+          for apk in dist/*_arm64-v8a.apk; do unzip -Z1 "$apk" | grep -q '^lib/arm64-v8a/libgojni.so$'; done
+          for apk in dist/*_armeabi-v7a.apk; do unzip -Z1 "$apk" | grep -q '^lib/armeabi-v7a/libgojni.so$'; done
+          for apk in dist/*_x86_64.apk; do unzip -Z1 "$apk" | grep -q '^lib/x86_64/libgojni.so$'; done
+          UNIVERSAL=$(find dist -name '*_universal.apk' -print -quit)
+          test "$(unzip -Z1 "$UNIVERSAL" | sed -n 's#^lib/\([^/]*\)/.*#\1#p' | sort -u | tr '\n' ' ')" = "arm64-v8a armeabi-v7a x86_64 "
+      - name: Enable KVM
+        if: env.PUBLISH_RELEASE == 'true'
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        if: env.PUBLISH_RELEASE == 'true'
+        with:
+          api-level: 37.0
+          arch: x86_64
+          profile: pixel_6
+          script: |
+            adb install "dist/warpscout-android_${WARPSCOUT_VERSION_NAME}_universal.apk"
+            adb shell am start -W -n io.github.openwarpkit.warpscout/io.github.openwarpkit.warpscout.MainActivity
+            adb shell pidof io.github.openwarpkit.warpscout
+      - name: Generate checksums
+        working-directory: dist
+        run: sha256sum *.apk THIRD_PARTY_NOTICES.md R8-mapping.txt > SHA256SUMS
+      - uses: actions/attest-build-provenance@v2
+        if: env.PUBLISH_RELEASE == 'true'
+        with:
+          subject-path: dist/*
+      - name: Create release notes
+        if: env.PUBLISH_RELEASE == 'true'
+        shell: bash
+        run: |
+          PREVIOUS=$(git tag --list 'android-v*' --sort=-version:refname | grep -v "^${GITHUB_REF_NAME}$" | head -n 1)
+          RANGE="${PREVIOUS:+$PREVIOUS..}${GITHUB_REF_NAME}"
+          {
+            printf 'Upstream core: `%s` (`%s`)\n\n' "$WARPSCOUT_UPSTREAM_TAG" "$WARPSCOUT_UPSTREAM_COMMIT"
+            printf '## Android changes\n\n'
+            git -P log --no-merges --pretty='- %s (`%h`)' "$RANGE" -- android mobileapi core internal/warpscout/mobile_backend.go scripts .github/workflows/android-release.yaml
+          } > release-notes.md
+      - uses: actions/upload-artifact@v4
+        if: env.PUBLISH_RELEASE != 'true'
+        with:
+          name: warpscout-android-unsigned-universal
+          path: dist/*_universal.apk
+      - uses: softprops/action-gh-release@v2
+        if: env.PUBLISH_RELEASE == 'true'
+        with:
+          name: WARPSCOUT for Android ${{ env.WARPSCOUT_VERSION_NAME }}
+          body_path: release-notes.md
+          files: dist/*

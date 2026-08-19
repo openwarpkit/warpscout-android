@@ -35,7 +35,7 @@ jobs:
         run: |
           BIN=warpscout
           [ "$GOOS" = windows ] && BIN=warpscout.exe
-          go build -trimpath -ldflags="-s -w -X main.version=${GITHUB_REF_NAME#v}" -o "$BIN" .
+          go build -trimpath -ldflags="-s -w -X github.com/vernette/warpscout/internal/warpscout.version=${GITHUB_REF_NAME#v}" -o "$BIN" .
           echo "BIN=$BIN" >> "$GITHUB_ENV"
 
       - name: Compress (linux only)

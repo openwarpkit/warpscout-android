@@ -1,3 +1,14 @@
 /warpscout
 /warpscout-account.json
 /warpscout-report-*.txt
+
+android/.gradle/
+android/.kotlin/
+android/local.properties
+android/app/build/
+android/build/
+android/app/libs/*.aar
+android/app/libs/warpscout-sources.jar
+!android/app/libs/.gitkeep
+.impeccable/
+.cache/

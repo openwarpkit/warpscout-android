@@ -1,0 +1,301 @@
+package warpscout
+
+import (
+	"context"
+	"encoding/binary"
+	"fmt"
+	"io"
+	"net"
+	"net/netip"
+	"os"
+	"os/signal"
+	"runtime/debug"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/amnezia-vpn/amneziawg-go/tun/netstack"
+)
+
+const (
+	defaultSocksListen = "127.0.0.1"
+	defaultSocksPort   = 1080
+	socksTestingNote   = "For testing purposes ONLY."
+)
+
+func runSocksCmd(ctx context.Context, opts options) error {
+	if opts.endpoint == "" {
+		return fmt.Errorf("-endpoint ADDR is required: pass what \"warpscout scan -best\" prints")
+	}
+	if opts.port < 1 || opts.port > 65535 {
+		return fmt.Errorf("-port (%d) must be between 1 and 65535", opts.port)
+	}
+	endpoint, err := parseEndpointSpec("-endpoint", opts.endpoint)
+	if err != nil {
+		return err
+	}
+	// The family is the endpoint's, which is why this command has no -6.
+	ap, err := netip.ParseAddrPort(endpoint)
+	if err != nil {
+		return err
+	}
+	opts.ipv6 = !ap.Addr().Is4()
+
+	if err := loadScanAccount(opts.accountPath); err != nil {
+		return err
+	}
+	run, _, err := setupScan(opts)
+	if err != nil {
+		return err
+	}
+	if run.isMASQUE() && masqueAcct == nil {
+		return fmt.Errorf("%s holds no MASQUE device: run \"warpscout register\" again", opts.accountPath)
+	}
+
+	ctx, stop := signal.NotifyContext(ctx, os.Interrupt)
+	defer stop()
+
+	timeout := time.Duration(opts.timeoutSec) * time.Second
+	if opts.through != "" {
+		n, err := dialOuter(ctx, opts, timeout)
+		if err != nil {
+			return err
+		}
+		defer n.tunnel.Close()
+		outer = n
+	}
+
+	tn, err := newTunnel(run)
+	if err != nil {
+		return err
+	}
+	defer tn.Close()
+	if !tn.handshake(ctx, endpoint, timeout) {
+		return fmt.Errorf("%s did not answer over %s - pick one a scan found working", endpoint, run.name)
+	}
+	// The same reason as the speedtest phase: gvisor allocates per packet, and this
+	// tunnel stays under traffic for as long as the process lives.
+	defer debug.SetGCPercent(debug.SetGCPercent(speedGCPercent))
+
+	ln, err := net.Listen("tcp", net.JoinHostPort(opts.listen, strconv.Itoa(opts.port)))
+	if err != nil {
+		return err
+	}
+	defer ln.Close()
+
+	exit, gotExit := fetchExit(ctx, tn, timeout)
+	writeSocksBanner(os.Stderr, newConStyles(consoleRenderer(os.Stderr)), ln.Addr().String(), endpoint, run, exit, gotExit)
+
+	go func() {
+		<-ctx.Done()
+		ln.Close()
+	}()
+	for {
+		c, err := ln.Accept()
+		if err != nil {
+			if ctx.Err() != nil {
+				return nil
+			}
+			return err
+		}
+		go serveSOCKS(ctx, c, tn.stack().tnet)
+	}
+}
+
+func throughLabel(run protoRun) string {
+	if outer == nil {
+		return run.name
+	}
+	return fmt.Sprintf("%s through %s", run.name, outer.label)
+}
+
+func fetchExit(ctx context.Context, tn tunnel, timeout time.Duration) (metaResult, bool) {
+	body, ok := tn.stack().fetch(ctx, timeout)
+	if !ok {
+		return metaResult{}, false
+	}
+	return parseMeta(body), true
+}
+
+func socksExitLine(t metaResult) string {
+	node := fmt.Sprintf("%s (%s node)", exitColoLocation(t), exitColo(t))
+	if t.loc == t.coloISO {
+		return node
+	}
+	return exitRegion(t) + " via " + node
+}
+
+// The warning comes before the address on purpose: the address is what gets
+// copied, so the reader has to pass the caveat to reach it.
+func writeSocksBanner(w io.Writer, st conStyles, proxy, endpoint string, run protoRun, exit metaResult, gotExit bool) {
+	fmt.Fprintln(w, st.warn.Bold(true).Render(socksTestingNote))
+	fmt.Fprintln(w, "One tunnel, no reconnect, no failover. For everyday use take a \"scan -conf\" config into a real client.")
+	fmt.Fprintln(w)
+
+	rows := [][2]string{
+		{"SOCKS5", st.accent.Render("socks5h://" + proxy)},
+		{"Endpoint", st.title.Render(endpoint)},
+		{"Tunnel", throughLabel(run)},
+	}
+	if gotExit {
+		rows = append(rows, [2]string{"Exit", st.ok.Render(socksExitLine(exit))})
+	}
+	lines := make([]string, len(rows))
+	for i, r := range rows {
+		lines[i] = st.dim.Render(fmt.Sprintf("%-9s", r[0])) + r[1]
+	}
+	fmt.Fprintln(w, st.box.Render(strings.Join(lines, "\n")))
+	fmt.Fprintln(w)
+
+	if gotExit {
+		fmt.Fprintf(w, "Exit is what %s reports. Confirm it elsewhere:\n", st.accent.Render(metaHost))
+		fmt.Fprintf(w, "  %s\n\n", st.accent.Render(fmt.Sprintf("curl -x socks5h://%s https://ifconfig.co/json", proxy)))
+	}
+	fmt.Fprintf(w, "Point clients at %s, not %s - the name has to be resolved in the tunnel.\n",
+		st.ok.Render("socks5h://"), st.fail.Render("socks5://"))
+	fmt.Fprintln(w, "\n"+st.dim.Render("Ctrl+C to stop the proxy"))
+}
+
+const (
+	socksVersion  = 5
+	socksNoAuth   = 0
+	socksConnect  = 1
+	socksOK       = 0
+	socksRefused  = 5
+	socksBadCmd   = 7
+	socksIPv4     = 1
+	socksDomain   = 3
+	socksIPv6     = 4
+	socksPortSize = 2
+	// Not -timeout: that one bounds a handshake on a direct path, while this covers
+	// the in-tunnel DNS lookup plus a TCP connect, both of which are slow through a
+	// nested tunnel.
+	socksDialTimeout = 10 * time.Second
+)
+
+func serveSOCKS(ctx context.Context, c net.Conn, tnet *netstack.Net) {
+	defer c.Close()
+	target, err := socksHandshake(c)
+	if err != nil {
+		return
+	}
+	dialCtx, cancel := context.WithTimeout(ctx, socksDialTimeout)
+	defer cancel()
+	target, err = resolveInTunnel(dialCtx, tnet, target)
+	if err != nil {
+		socksReply(c, socksRefused)
+		return
+	}
+	remote, err := tnet.DialContext(dialCtx, "tcp", target)
+	if err != nil {
+		socksReply(c, socksRefused)
+		return
+	}
+	defer remote.Close()
+	if err := socksReply(c, socksOK); err != nil {
+		return
+	}
+	go io.Copy(remote, c)
+	io.Copy(c, remote)
+}
+
+// Resolved inside the tunnel, never on the host: a host lookup would leak the
+// query onto the very network this command exists to bypass, and it answers with
+// addresses picked for the host's own region. The v4 answer is taken for the same
+// reason the meta fetch takes it - and, nested, because netstack tries the
+// addresses in order with a share of the deadline each, so an IPv6 answer that
+// does not pass eats the budget the working v4 one needed.
+func resolveInTunnel(ctx context.Context, tnet *netstack.Net, target string) (string, error) {
+	host, port, err := net.SplitHostPort(target)
+	if err != nil {
+		return "", err
+	}
+	if _, err := netip.ParseAddr(host); err == nil {
+		return target, nil
+	}
+	ips, err := tnet.LookupContextHost(ctx, host)
+	if err != nil {
+		return "", err
+	}
+	if len(ips) == 0 {
+		return "", fmt.Errorf("no address for %s", host)
+	}
+	return net.JoinHostPort(preferV4(ips), port), nil
+}
+
+// No authentication and CONNECT only: no consumer of this command uses BIND or
+// UDP ASSOCIATE.
+func socksHandshake(rw io.ReadWriter) (string, error) {
+	head := make([]byte, 2)
+	if _, err := io.ReadFull(rw, head); err != nil {
+		return "", err
+	}
+	if head[0] != socksVersion {
+		return "", fmt.Errorf("socks version %d", head[0])
+	}
+	if _, err := io.ReadFull(rw, make([]byte, head[1])); err != nil {
+		return "", err
+	}
+	if _, err := rw.Write([]byte{socksVersion, socksNoAuth}); err != nil {
+		return "", err
+	}
+
+	req := make([]byte, 4)
+	if _, err := io.ReadFull(rw, req); err != nil {
+		return "", err
+	}
+	if req[0] != socksVersion {
+		return "", fmt.Errorf("socks version %d", req[0])
+	}
+	if req[1] != socksConnect {
+		socksReply(rw, socksBadCmd)
+		return "", fmt.Errorf("socks command %d is not CONNECT", req[1])
+	}
+
+	host, err := socksAddr(rw, req[3])
+	if err != nil {
+		return "", err
+	}
+	port := make([]byte, socksPortSize)
+	if _, err := io.ReadFull(rw, port); err != nil {
+		return "", err
+	}
+	return net.JoinHostPort(host, strconv.Itoa(int(binary.BigEndian.Uint16(port)))), nil
+}
+
+func socksAddr(r io.Reader, atyp byte) (string, error) {
+	n := 0
+	switch atyp {
+	case socksIPv4:
+		n = 4
+	case socksIPv6:
+		n = 16
+	case socksDomain:
+		size := make([]byte, 1)
+		if _, err := io.ReadFull(r, size); err != nil {
+			return "", err
+		}
+		n = int(size[0])
+	default:
+		return "", fmt.Errorf("socks address type %d", atyp)
+	}
+	buf := make([]byte, n)
+	if _, err := io.ReadFull(r, buf); err != nil {
+		return "", err
+	}
+	if atyp == socksDomain {
+		return string(buf), nil
+	}
+	addr, ok := netip.AddrFromSlice(buf)
+	if !ok {
+		return "", fmt.Errorf("socks address of %d bytes", n)
+	}
+	return addr.String(), nil
+}
+
+// The bound address is what the client is told, and no client of a CONNECT-only
+// proxy reads it, so the all-zero IPv4 placeholder stands in for it.
+func socksReply(w io.Writer, rep byte) error {
+	_, err := w.Write([]byte{socksVersion, rep, 0, socksIPv4, 0, 0, 0, 0, 0, 0})
+	return err
+}

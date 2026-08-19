@@ -2,7 +2,7 @@ name: test
 
 on:
   push:
-    branches: [master]
+    branches: [master, main]
     paths-ignore: ["**.md", "LICENSE*", ".github/**"]
   pull_request:
     paths-ignore: ["**.md", "LICENSE*", ".github/**"]

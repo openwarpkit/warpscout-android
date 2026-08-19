@@ -1,0 +1,4 @@
+-keep class mobileapi.** { *; }
+-keepattributes *Annotation*
+-dontwarn androidx.window.extensions.**
+-dontwarn androidx.window.sidecar.**
