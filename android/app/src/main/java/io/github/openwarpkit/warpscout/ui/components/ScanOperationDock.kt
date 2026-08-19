@@ -23,6 +23,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TooltipAnchorPosition
 import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.rememberTooltipState
@@ -44,7 +45,7 @@ fun ScanStartButton(
     modifier: Modifier = Modifier
 ) {
     TooltipBox(
-        positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+        positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
         tooltip = { PlainTooltip { Text(stringResource(R.string.start_scan)) } },
         state = rememberTooltipState(),
         modifier = modifier
@@ -82,98 +83,93 @@ fun ScanOperationDock(
 ) {
     val finished = !state.running
     val failed = finished && state.latestResultJson == null
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        tonalElevation = 2.dp,
-        shadowElevation = 3.dp
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
+        Surface(
+            modifier = Modifier
+                .weight(3f)
+                .heightIn(min = 56.dp)
+                .clickable(
+                    enabled = finished && state.historyId != null,
+                    onClick = onOpenHistory
+                ),
+            shape = MaterialTheme.shapes.medium,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh
         ) {
-            Surface(
-                modifier = Modifier
-                    .weight(3f)
-                    .heightIn(min = 56.dp)
-                    .clickable(
-                        enabled = finished && state.historyId != null,
-                        onClick = onOpenHistory
+            Column(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(5.dp)
+            ) {
+                Text(
+                    text = when {
+                        state.running -> state.phase.ifBlank { stringResource(R.string.phase_preparing) }
+                        failed -> state.errorMessage ?: stringResource(R.string.status_failed)
+                        else -> stringResource(R.string.status_completed)
+                    },
+                    style = MaterialTheme.typography.labelLarge,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = stringResource(
+                        R.string.scan_dock_progress,
+                        state.completed,
+                        state.total,
+                        state.working
                     ),
-                shape = MaterialTheme.shapes.medium,
-                color = MaterialTheme.colorScheme.surfaceContainerHigh
-            ) {
-                Column(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(5.dp)
-                ) {
-                    Text(
-                        text = when {
-                            state.running -> state.phase.ifBlank { stringResource(R.string.phase_preparing) }
-                            failed -> state.errorMessage ?: stringResource(R.string.status_failed)
-                            else -> stringResource(R.string.status_completed)
-                        },
-                        style = MaterialTheme.typography.labelLarge,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        text = stringResource(
-                            R.string.scan_dock_progress,
-                            state.completed,
-                            state.total,
-                            state.working
-                        ),
-                        style = MaterialTheme.typography.bodySmall,
-                        fontFamily = FontFamily.Monospace,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    LinearProgressIndicator(
-                        progress = { if (finished) 1f else state.progress },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
+                    style = MaterialTheme.typography.bodySmall,
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                LinearProgressIndicator(
+                    progress = { if (finished) 1f else state.progress },
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
-            Box(
-                modifier = Modifier.weight(1f),
-                contentAlignment = Alignment.CenterEnd
+        }
+        Box(
+            modifier = Modifier.weight(1f),
+            contentAlignment = Alignment.CenterEnd
+        ) {
+            val tooltip = when {
+                state.running -> stringResource(R.string.stop_operation)
+                else -> stringResource(R.string.dismiss)
+            }
+            TooltipBox(
+                positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
+                tooltip = { PlainTooltip { Text(tooltip) } },
+                state = rememberTooltipState()
             ) {
-                val tooltip = when {
-                    state.running -> stringResource(R.string.stop_operation)
-                    else -> stringResource(R.string.dismiss)
-                }
-                TooltipBox(
-                    positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
-                    tooltip = { PlainTooltip { Text(tooltip) } },
-                    state = rememberTooltipState()
+                FloatingActionButton(
+                    onClick = if (state.running) onStop else onDismiss,
+                    modifier = Modifier.size(56.dp)
                 ) {
-                    FloatingActionButton(
-                        onClick = if (state.running) onStop else onDismiss,
-                        modifier = Modifier.size(56.dp)
-                    ) {
-                        when {
-                            state.running -> Box(contentAlignment = Alignment.Center) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(34.dp),
-                                    strokeWidth = 3.dp,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                                Icon(
-                                    Icons.Filled.Stop,
-                                    contentDescription = stringResource(R.string.stop_operation),
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
-                            failed -> Icon(
-                                Icons.Filled.Close,
-                                contentDescription = stringResource(R.string.dismiss)
+                    when {
+                        state.running -> Box(contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(34.dp),
+                                strokeWidth = 3.dp,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
                             )
-                            else -> Icon(
-                                Icons.Filled.Check,
-                                contentDescription = stringResource(R.string.dismiss)
+                            Icon(
+                                Icons.Filled.Stop,
+                                contentDescription = stringResource(R.string.stop_operation),
+                                modifier = Modifier.size(16.dp)
                             )
                         }
+                        failed -> Icon(
+                            Icons.Filled.Close,
+                            contentDescription = stringResource(R.string.dismiss)
+                        )
+                        else -> Icon(
+                            Icons.Filled.Check,
+                            contentDescription = stringResource(R.string.dismiss)
+                        )
                     }
                 }
             }
