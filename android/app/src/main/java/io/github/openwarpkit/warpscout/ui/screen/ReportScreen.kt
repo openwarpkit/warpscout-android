@@ -2,6 +2,9 @@ package io.github.openwarpkit.warpscout.ui.screen
 
 import android.content.ClipData
 import android.content.ClipboardManager
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -28,6 +31,8 @@ import androidx.compose.material.icons.outlined.ArrowDownward
 import androidx.compose.material.icons.outlined.ArrowUpward
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
+import androidx.compose.material.icons.outlined.SaveAlt
+import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -62,10 +67,15 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.openwarpkit.warpscout.R
 import io.github.openwarpkit.warpscout.data.HistoryEntity
+import io.github.openwarpkit.warpscout.data.ReportImageColumn
+import io.github.openwarpkit.warpscout.data.ReportImageDocument
+import io.github.openwarpkit.warpscout.data.ReportImageRow
+import io.github.openwarpkit.warpscout.data.ReportImageRowStyle
 import io.github.openwarpkit.warpscout.ui.AppViewModel
 import org.json.JSONObject
 import java.text.DateFormat
 import java.util.Date
+import kotlin.math.roundToInt
 
 internal data class ReportEndpoint(
     val endpoint: String,
@@ -169,6 +179,8 @@ fun ReportScreen(
                     .padding(padding),
                 onOpen = { viewModel.openReport(item) },
                 onShare = { viewModel.shareReport(item) },
+                onSaveImage = viewModel::saveReportImage,
+                onShareImage = viewModel::shareReportImage,
                 onViewConfig = onViewConfig
             )
         }
@@ -184,6 +196,8 @@ private fun ReportContent(
     modifier: Modifier,
     onOpen: () -> Unit,
     onShare: () -> Unit,
+    onSaveImage: (ReportImageDocument, Uri) -> Unit,
+    onShareImage: (ReportImageDocument) -> Unit,
     onViewConfig: (String) -> Unit
 ) {
     val results = remember(item.resultJson) { parseReport(item.resultJson.orEmpty()) }
@@ -202,6 +216,68 @@ private fun ReportContent(
         visibleReportColumns(results, hideEmptyColumns)
     }
     val displayedResults = remember(results, sort) { sortReportResults(results, sort) }
+    val imageTitle = stringResource(R.string.report_image_title)
+    val imageProtocol = stringResource(R.string.protocol)
+    val imageWorking = stringResource(R.string.report_image_working)
+    val imageDate = stringResource(R.string.report_image_date)
+    val workingLabel = stringResource(R.string.status_working)
+    val tornDownLabel = stringResource(R.string.status_torn_down)
+    val failedLabel = stringResource(R.string.status_failed)
+    val columnLabels = visibleColumns.map { stringResource(it.label) }
+    val formattedDate = remember(item.startedAt) {
+        DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(item.startedAt))
+    }
+    val imageDocument = remember(
+        item.id,
+        item.protocol,
+        formattedDate,
+        displayedResults,
+        visibleColumns,
+        columnLabels,
+        imageTitle,
+        imageProtocol,
+        imageWorking,
+        imageDate,
+        workingLabel,
+        tornDownLabel,
+        failedLabel
+    ) {
+        ReportImageDocument(
+            historyId = item.id,
+            title = imageTitle,
+            metadata = listOf(
+                imageProtocol to item.protocol.uppercase(),
+                imageWorking to "$working / ${results.size}",
+                imageDate to formattedDate
+            ),
+            columns = visibleColumns.mapIndexed { index, column ->
+                ReportImageColumn(
+                    label = columnLabels[index],
+                    width = (column.width.value * 2f).roundToInt()
+                )
+            },
+            rows = displayedResults.map { result ->
+                ReportImageRow(
+                    values = visibleColumns.map { column ->
+                        reportImageValue(result, column, workingLabel, tornDownLabel, failedLabel)
+                    },
+                    style = when {
+                        !result.working -> ReportImageRowStyle.Failed
+                        result.durable -> ReportImageRowStyle.Working
+                        else -> ReportImageRowStyle.TornDown
+                    }
+                )
+            }
+        )
+    }
+    var pendingImageDocument by remember { mutableStateOf<ReportImageDocument?>(null) }
+    val createImageDocument = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("image/png")
+    ) { uri ->
+        val document = pendingImageDocument
+        pendingImageDocument = null
+        if (uri != null && document != null) onSaveImage(document, uri)
+    }
 
     LazyColumn(
         modifier = modifier,
@@ -246,12 +322,44 @@ private fun ReportContent(
         }
         if (tableExpanded) {
             item("report-table-options") {
-                FilterChip(
-                    selected = hideEmptyColumns,
-                    onClick = { hideEmptyColumns = !hideEmptyColumns },
-                    label = { Text(stringResource(R.string.hide_empty_columns)) },
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
-                )
+                Column(
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    FilterChip(
+                        selected = hideEmptyColumns,
+                        onClick = { hideEmptyColumns = !hideEmptyColumns },
+                        label = { Text(stringResource(R.string.hide_empty_columns)) }
+                    )
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            enabled = actionsEnabled,
+                            onClick = {
+                                pendingImageDocument = imageDocument
+                                createImageDocument.launch("warpscout-report-${item.id}.png")
+                            }
+                        ) {
+                            Icon(Icons.Outlined.SaveAlt, contentDescription = null)
+                            Text(
+                                stringResource(R.string.save_report_image),
+                                modifier = Modifier.padding(start = 8.dp)
+                            )
+                        }
+                        OutlinedButton(
+                            enabled = actionsEnabled,
+                            onClick = { onShareImage(imageDocument) }
+                        ) {
+                            Icon(Icons.Outlined.Share, contentDescription = null)
+                            Text(
+                                stringResource(R.string.share_report_image),
+                                modifier = Modifier.padding(start = 8.dp)
+                            )
+                        }
+                    }
+                }
             }
             item("report-header") {
                 Box(
@@ -699,3 +807,25 @@ internal fun formatPercent(value: Double, measured: Boolean): String =
     if (measured && value.isFinite() && value >= 0) "%.0f%%".format(value) else "-"
 
 internal fun formatSpeed(value: Double): String = if (value > 0) "%.1f Mbps".format(value) else "-"
+
+private fun reportImageValue(
+    result: ReportEndpoint,
+    column: ReportColumn,
+    workingLabel: String,
+    tornDownLabel: String,
+    failedLabel: String
+): String = when (column) {
+    ReportColumn.Status -> when {
+        !result.working -> failedLabel
+        result.durable -> workingLabel
+        else -> tornDownLabel
+    }
+    ReportColumn.Endpoint -> result.endpoint
+    ReportColumn.EndpointPing -> formatLatency(result.endpointPingMs)
+    ReportColumn.TunnelPing -> formatLatency(result.tunnelPingMs)
+    ReportColumn.Loss -> formatPercent(result.lossPercent, result.tunnelPingMs > 0)
+    ReportColumn.Region -> withFlag(result.region, result.region)
+    ReportColumn.Node -> result.node.ifBlank { "-" }
+    ReportColumn.NodeLocation -> withFlag(result.country, result.nodeLocation)
+    ReportColumn.Speed -> formatSpeed(result.speedMbps)
+}

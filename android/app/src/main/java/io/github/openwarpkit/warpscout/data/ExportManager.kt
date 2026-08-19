@@ -29,7 +29,19 @@ class ExportManager @Inject constructor(
 ) {
     suspend fun shareReport(item: HistoryEntity) {
         val export = reportFile(item)
-        share(export.fileName, export.uri)
+        share(export.fileName, export.uri, "text/plain")
+    }
+
+    suspend fun shareReportImage(document: ReportImageDocument) {
+        val fileName = "warpscout-report-${document.historyId}.png"
+        val uri = writeReportImage(fileName, document)
+        share(fileName, uri, "image/png")
+    }
+
+    suspend fun saveReportImage(document: ReportImageDocument, uri: Uri) = withContext(Dispatchers.IO) {
+        context.contentResolver.openOutputStream(uri, "wt")?.use {
+            ReportImageRenderer.write(document, it)
+        } ?: error("Unable to open the selected file")
     }
 
     suspend fun openReport(item: HistoryEntity) {
@@ -63,7 +75,7 @@ class ExportManager @Inject constructor(
     }
 
     suspend fun shareConfig(document: ConfigDocument) {
-        share(document.fileName, write(document.fileName, document.content))
+        share(document.fileName, write(document.fileName, document.content), "text/plain")
     }
 
     suspend fun saveConfig(document: ConfigDocument, uri: Uri) = withContext(Dispatchers.IO) {
@@ -113,9 +125,19 @@ class ExportManager @Inject constructor(
         FileProvider.getUriForFile(context, "${context.packageName}.files", file)
     }
 
-    private fun share(fileName: String, uri: Uri) {
+    private suspend fun writeReportImage(
+        fileName: String,
+        document: ReportImageDocument
+    ): Uri = withContext(Dispatchers.IO) {
+        val directory = File(context.cacheDir, "exports").apply { mkdirs() }
+        val file = File(directory, fileName)
+        file.outputStream().use { ReportImageRenderer.write(document, it) }
+        FileProvider.getUriForFile(context, "${context.packageName}.files", file)
+    }
+
+    private fun share(fileName: String, uri: Uri, mimeType: String) {
         val send = Intent(Intent.ACTION_SEND)
-            .setType("text/plain")
+            .setType(mimeType)
             .putExtra(Intent.EXTRA_STREAM, uri)
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             .apply { clipData = ClipData.newRawUri(fileName, uri) }

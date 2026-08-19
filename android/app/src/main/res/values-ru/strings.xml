@@ -135,6 +135,11 @@
     <string name="report_summary">Рабочих %1$d из %2$d проверенных</string>
     <string name="open_txt">Открыть</string>
     <string name="share_txt">Поделиться</string>
+    <string name="save_report_image">Сохранить скриншот</string>
+    <string name="share_report_image">Поделиться скриншотом</string>
+    <string name="report_image_title">WarpScout for Android</string>
+    <string name="report_image_working">Рабочие</string>
+    <string name="report_image_date">Сканирование</string>
     <string name="show_report_table">Развернуть таблицу отчёта</string>
     <string name="hide_report_table">Свернуть таблицу отчёта</string>
     <string name="hide_empty_columns">Скрыть пустые столбцы</string>

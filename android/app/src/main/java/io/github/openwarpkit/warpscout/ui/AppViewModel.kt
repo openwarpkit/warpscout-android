@@ -13,6 +13,7 @@ import io.github.openwarpkit.warpscout.data.ConfigDocument
 import io.github.openwarpkit.warpscout.data.ExportManager
 import io.github.openwarpkit.warpscout.data.HistoryDao
 import io.github.openwarpkit.warpscout.data.HistoryEntity
+import io.github.openwarpkit.warpscout.data.ReportImageDocument
 import io.github.openwarpkit.warpscout.data.SettingsStore
 import io.github.openwarpkit.warpscout.data.UpdateChecker
 import io.github.openwarpkit.warpscout.data.UpdateResult
@@ -126,6 +127,24 @@ class AppViewModel @Inject constructor(
         mutableExportError.value = null
         viewModelScope.launch {
             runCatching { exportManager.openReport(item) }
+                .onFailure { mutableExportError.value = it.message }
+        }
+    }
+
+    fun shareReportImage(document: ReportImageDocument) {
+        if (operation.value.running) return
+        mutableExportError.value = null
+        viewModelScope.launch {
+            runCatching { exportManager.shareReportImage(document) }
+                .onFailure { mutableExportError.value = it.message }
+        }
+    }
+
+    fun saveReportImage(document: ReportImageDocument, uri: Uri) {
+        if (operation.value.running) return
+        mutableExportError.value = null
+        viewModelScope.launch {
+            runCatching { exportManager.saveReportImage(document, uri) }
                 .onFailure { mutableExportError.value = it.message }
         }
     }
