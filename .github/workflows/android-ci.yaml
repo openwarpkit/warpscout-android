@@ -110,9 +110,7 @@ jobs:
           arch: x86_64
           profile: pixel_6
           script: |
-            APK=$(find "$GITHUB_WORKSPACE/apks" -name '*universal-debug.apk' -print -quit)
-            test -n "$APK"
-            adb install "$APK"
+            adb install "$(find "$GITHUB_WORKSPACE/apks" -name '*universal-debug.apk' -print -quit)"
             adb shell am start -W -n io.github.openwarpkit.warpscout.debug/io.github.openwarpkit.warpscout.MainActivity
             adb shell pidof io.github.openwarpkit.warpscout.debug
 
