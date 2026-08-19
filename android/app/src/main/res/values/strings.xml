@@ -47,6 +47,7 @@
     <string name="mtu">MTU</string>
     <string name="dns">DNS servers</string>
     <string name="speed_test">Speed test</string>
+    <string name="speed_test_selection_notice">Speed is measured for the best endpoints selected by subnet and node. Duplicate endpoints are measured once.</string>
     <string name="warp_in_warp">WARP-in-WARP</string>
     <string name="through_endpoint">Outer endpoint</string>
     <string name="inner_wg">Inner WG</string>
