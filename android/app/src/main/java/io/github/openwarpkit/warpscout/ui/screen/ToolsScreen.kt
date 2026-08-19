@@ -7,6 +7,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -54,7 +55,6 @@ import io.github.openwarpkit.warpscout.data.TextDocument
 import io.github.openwarpkit.warpscout.data.ToolSearchResult
 import io.github.openwarpkit.warpscout.ui.AppViewModel
 import io.github.openwarpkit.warpscout.ui.components.OperationPanel
-import org.json.JSONArray
 import org.json.JSONObject
 import java.text.DateFormat
 import java.util.Date
@@ -266,7 +266,10 @@ private fun LastSearchPanel(
             ParameterBlock(stringResource(R.string.search_parameters), requestParameters)
             if (selectedParameters != null) {
                 ParameterBlock(stringResource(R.string.selected_parameters), selectedParameters)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
                     TextButton(onClick = { copyText(context, selectedParameters) }) {
                         Icon(Icons.Outlined.ContentCopy, contentDescription = null)
                         Text(stringResource(R.string.copy_parameters), Modifier.padding(start = 6.dp))
@@ -284,7 +287,10 @@ private fun LastSearchPanel(
                     DiscoveryAttemptRow(index + 1, attempt)
                 }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 OutlinedButton(onClick = { onSave(document) }) {
                     Icon(Icons.Outlined.Download, contentDescription = null)
                     Text(stringResource(R.string.save_variants), Modifier.padding(start = 6.dp))
@@ -317,22 +323,19 @@ private fun DiscoveryAttemptRow(index: Int, attempt: DiscoveryAttempt) {
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(3.dp)
     ) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        if (attempt.selected) {
             Text(
-                "$index. ${attempt.parameters}",
-                style = MaterialTheme.typography.bodySmall,
-                fontFamily = FontFamily.Monospace,
-                modifier = Modifier.weight(1f)
+                stringResource(R.string.selected_variant),
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
             )
-            if (attempt.selected) {
-                Text(
-                    stringResource(R.string.selected_variant),
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
         }
+        Text(
+            "$index. ${attempt.parameters}",
+            style = MaterialTheme.typography.bodySmall,
+            fontFamily = FontFamily.Monospace
+        )
         Text(
             if (attempt.completed) {
                 stringResource(R.string.discovery_working_format, attempt.working, attempt.total)
