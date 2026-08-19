@@ -163,6 +163,7 @@ fun ReportScreen(
             ReportContent(
                 item = item,
                 actionsEnabled = !operation.running,
+                scanDockVisible = operation.operation == "scan",
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding),
@@ -179,6 +180,7 @@ fun ReportScreen(
 private fun ReportContent(
     item: HistoryEntity,
     actionsEnabled: Boolean,
+    scanDockVisible: Boolean,
     modifier: Modifier,
     onOpen: () -> Unit,
     onShare: () -> Unit,
@@ -203,7 +205,9 @@ private fun ReportContent(
 
     LazyColumn(
         modifier = modifier,
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 24.dp)
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+            bottom = if (scanDockVisible) 112.dp else 24.dp
+        )
     ) {
         item("report-summary") {
             ReportSection(

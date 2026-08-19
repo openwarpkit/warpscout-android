@@ -40,6 +40,7 @@ fun HistoryScreen(
     onOpenReport: (Long) -> Unit
 ) {
     val history by viewModel.history.collectAsStateWithLifecycle()
+    val operation by viewModel.operation.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
 
     LaunchedEffect(highlightedId, history) {
@@ -68,7 +69,12 @@ fun HistoryScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 20.dp, vertical = 8.dp)
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                    start = 20.dp,
+                    top = 8.dp,
+                    end = 20.dp,
+                    bottom = if (operation.operation == "scan") 104.dp else 8.dp
+                )
             ) {
                 items(history, key = HistoryEntity::id) { item ->
                     Surface(

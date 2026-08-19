@@ -2,7 +2,6 @@ package io.github.openwarpkit.warpscout.ui
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
@@ -119,16 +118,15 @@ private fun MainNavigation(viewModel: AppViewModel) {
                         )
                     }
                 }
-                Column(Modifier.weight(1f)) {
-                    Box(Modifier.weight(1f)) {
-                        AppNavHost(viewModel, navController, highlightedHistoryId)
-                    }
+                Box(Modifier.weight(1f)) {
+                    AppNavHost(viewModel, navController, highlightedHistoryId)
                     if (showScanDock) {
                         ScanOperationDock(
                             state = operation,
                             onStop = viewModel::stop,
                             onDismiss = viewModel::dismissOperation,
-                            onOpenHistory = openLatestHistory
+                            onOpenHistory = openLatestHistory,
+                            modifier = Modifier.align(Alignment.BottomCenter)
                         )
                     }
                 }
@@ -140,28 +138,18 @@ private fun MainNavigation(viewModel: AppViewModel) {
                 contentColor = MaterialTheme.colorScheme.onBackground,
                 contentWindowInsets = WindowInsets(0, 0, 0, 0),
                 bottomBar = {
-                    Column {
-                        if (showScanDock) {
-                            ScanOperationDock(
-                                state = operation,
-                                onStop = viewModel::stop,
-                                onDismiss = viewModel::dismissOperation,
-                                onOpenHistory = openLatestHistory
+                    NavigationBar(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                        tonalElevation = 0.dp
+                    ) {
+                        destinations.forEach { destination ->
+                            val selected = selectedPrimaryRoute == destination.route
+                            NavigationBarItem(
+                                selected = selected,
+                                onClick = { navController.navigatePrimary(destination.route) },
+                                icon = { Icon(destination.icon, contentDescription = null) },
+                                label = { androidx.compose.material3.Text(stringResource(destination.label)) }
                             )
-                        }
-                        NavigationBar(
-                            containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                            tonalElevation = 0.dp
-                        ) {
-                            destinations.forEach { destination ->
-                                val selected = selectedPrimaryRoute == destination.route
-                                NavigationBarItem(
-                                    selected = selected,
-                                    onClick = { navController.navigatePrimary(destination.route) },
-                                    icon = { Icon(destination.icon, contentDescription = null) },
-                                    label = { androidx.compose.material3.Text(stringResource(destination.label)) }
-                                )
-                            }
                         }
                     }
                 }
@@ -173,6 +161,15 @@ private fun MainNavigation(viewModel: AppViewModel) {
                         .consumeWindowInsets(padding)
                 ) {
                     AppNavHost(viewModel, navController, highlightedHistoryId)
+                    if (showScanDock) {
+                        ScanOperationDock(
+                            state = operation,
+                            onStop = viewModel::stop,
+                            onDismiss = viewModel::dismissOperation,
+                            onOpenHistory = openLatestHistory,
+                            modifier = Modifier.align(Alignment.BottomCenter)
+                        )
+                    }
                 }
             }
         }
