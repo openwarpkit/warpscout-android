@@ -134,7 +134,7 @@ jobs:
         if: env.PUBLISH_RELEASE == 'true'
         shell: bash
         run: |
-          PREVIOUS=$(git tag --list 'android-v*' --sort=-version:refname | grep -v "^${GITHUB_REF_NAME}$" | head -n 1)
+          PREVIOUS=$(git tag --list 'android-v*' --sort=-version:refname | sed "/^${GITHUB_REF_NAME}$/d" | head -n 1)
           RANGE="${PREVIOUS:+$PREVIOUS..}${GITHUB_REF_NAME}"
           {
             printf 'Upstream core: `%s` (`%s`)\n\n' "$WARPSCOUT_UPSTREAM_TAG" "$WARPSCOUT_UPSTREAM_COMMIT"
