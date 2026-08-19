@@ -111,7 +111,7 @@ jobs:
       - uses: reactivecircus/android-emulator-runner@v2
         if: env.PUBLISH_RELEASE == 'true'
         with:
-          api-level: 37.0
+          api-level: 36
           arch: x86_64
           profile: pixel_6
           script: |
