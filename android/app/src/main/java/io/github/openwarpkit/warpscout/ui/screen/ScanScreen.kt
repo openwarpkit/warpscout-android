@@ -30,6 +30,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -57,6 +58,7 @@ private data class ProtocolChoice(val id: String, val label: String)
 @Composable
 fun ScanScreen(viewModel: AppViewModel) {
     val operation by viewModel.operation.collectAsStateWithLifecycle()
+    val toolProfile by viewModel.toolScanProfile.collectAsStateWithLifecycle()
     var preset by rememberSaveable { mutableStateOf(ScanPreset.Standard) }
     var expert by rememberSaveable { mutableStateOf(false) }
     var protocol by rememberSaveable { mutableStateOf("wg") }
@@ -80,6 +82,22 @@ fun ScanScreen(viewModel: AppViewModel) {
     var nested by rememberSaveable { mutableStateOf(false) }
     var through by rememberSaveable { mutableStateOf("") }
     var innerProtocol by rememberSaveable { mutableStateOf("wg") }
+
+    LaunchedEffect(toolProfile) {
+        val profile = toolProfile ?: return@LaunchedEffect
+        expert = true
+        protocol = profile.protocol
+        if (profile.protocol == "awg") {
+            junkCount = profile.junkCount.toString()
+            junkMin = profile.junkMin.toString()
+            junkMax = profile.junkMax.toString()
+            i1 = profile.i1
+        } else if (profile.protocol.startsWith("masque")) {
+            masqueSni = profile.sni
+            masqueAttempts = profile.attempts.coerceAtLeast(1).toString()
+        }
+        viewModel.consumeToolScanProfile(profile)
+    }
 
     fun startScan() {
         val resolved = resolveScanOptions(

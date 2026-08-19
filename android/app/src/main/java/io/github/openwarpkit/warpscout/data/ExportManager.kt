@@ -21,6 +21,11 @@ data class ConfigDocument(
     val content: String
 )
 
+data class TextDocument(
+    val fileName: String,
+    val content: String
+)
+
 @Singleton
 class ExportManager @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -41,6 +46,16 @@ class ExportManager @Inject constructor(
     suspend fun saveReportImage(document: ReportImageDocument, uri: Uri) = withContext(Dispatchers.IO) {
         context.contentResolver.openOutputStream(uri, "wt")?.use {
             ReportImageRenderer.write(document, it)
+        } ?: error("Unable to open the selected file")
+    }
+
+    suspend fun shareText(document: TextDocument) {
+        share(document.fileName, write(document.fileName, document.content), "text/plain")
+    }
+
+    suspend fun saveText(document: TextDocument, uri: Uri) = withContext(Dispatchers.IO) {
+        context.contentResolver.openOutputStream(uri, "wt")?.bufferedWriter()?.use {
+            it.write(document.content)
         } ?: error("Unable to open the selected file")
     }
 

@@ -171,4 +171,15 @@
     <string name="clear_data">Clear data</string>
     <string name="cancel">Cancel</string>
     <string name="scan_dock_progress">%1$d / %2$d · %3$d working</string>
+    <string name="last_search">Last search</string>
+    <string name="search_parameters">Search parameters</string>
+    <string name="selected_parameters">Selected parameters</string>
+    <string name="tested_variants">Tested variants</string>
+    <string name="copy_parameters">Copy parameters</string>
+    <string name="use_for_scan">Use for scan</string>
+    <string name="save_variants">Save all</string>
+    <string name="share_variants">Share all</string>
+    <string name="not_completed">Scan not completed</string>
+    <string name="selected_variant">Selected</string>
+    <string name="discovery_working_format">%1$d / %2$d working</string>
 </resources>

@@ -191,7 +191,12 @@ private fun AppNavHost(
                 onOpenReport = { historyId -> navController.navigate("report/$historyId") }
             )
         }
-        composable("tools") { ToolsScreen(viewModel) }
+        composable("tools") {
+            ToolsScreen(
+                viewModel = viewModel,
+                onOpenScan = { navController.navigatePrimary("scan") }
+            )
+        }
         composable("settings") { SettingsScreen(viewModel, onAbout = { navController.navigate("about") }) }
         composable("about") { AboutScreen(viewModel, onBack = { navController.popBackStack() }) }
         composable("report/{historyId}") { entry ->

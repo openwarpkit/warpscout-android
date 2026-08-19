@@ -16,6 +16,10 @@ import io.github.openwarpkit.warpscout.data.HistoryEntity
 import io.github.openwarpkit.warpscout.data.ReportImageDocument
 import io.github.openwarpkit.warpscout.data.SettingsStore
 import io.github.openwarpkit.warpscout.data.ToolResultStore
+import io.github.openwarpkit.warpscout.data.ToolScanProfile
+import io.github.openwarpkit.warpscout.data.ToolSearchResult
+import io.github.openwarpkit.warpscout.data.TextDocument
+import io.github.openwarpkit.warpscout.data.toScanProfile
 import io.github.openwarpkit.warpscout.data.UpdateChecker
 import io.github.openwarpkit.warpscout.data.UpdateResult
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -52,6 +56,9 @@ class AppViewModel @Inject constructor(
 
     private val mutableConfigDocument = MutableStateFlow<Result<ConfigDocument>?>(null)
     val configDocument: StateFlow<Result<ConfigDocument>?> = mutableConfigDocument.asStateFlow()
+
+    private val mutableToolScanProfile = MutableStateFlow<ToolScanProfile?>(null)
+    val toolScanProfile: StateFlow<ToolScanProfile?> = mutableToolScanProfile.asStateFlow()
 
     val operation = operations.state
     val history = historyDao.observeAll().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -156,6 +163,32 @@ class AppViewModel @Inject constructor(
         }
     }
 
+    fun shareText(document: TextDocument) {
+        mutableExportError.value = null
+        viewModelScope.launch {
+            runCatching { exportManager.shareText(document) }
+                .onFailure { mutableExportError.value = it.message }
+        }
+    }
+
+    fun saveText(document: TextDocument, uri: Uri) {
+        mutableExportError.value = null
+        viewModelScope.launch {
+            runCatching { exportManager.saveText(document, uri) }
+                .onFailure { mutableExportError.value = it.message }
+        }
+    }
+
+    fun applyToolResult(result: ToolSearchResult): Boolean {
+        val profile = result.toScanProfile() ?: return false
+        mutableToolScanProfile.value = profile
+        return true
+    }
+
+    fun consumeToolScanProfile(profile: ToolScanProfile) {
+        if (mutableToolScanProfile.value == profile) mutableToolScanProfile.value = null
+    }
+
     fun loadConfig(item: HistoryEntity, format: String) {
         if (operation.value.running) return
         mutableExportError.value = null
@@ -194,6 +227,7 @@ class AppViewModel @Inject constructor(
             }.onSuccess {
                 operations.clearFinished()
                 mutableConfigDocument.value = null
+                mutableToolScanProfile.value = null
                 mutableUpdateResult.value = null
                 mutableAccountError.value = null
                 mutableHasAccount.value = false

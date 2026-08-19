@@ -28,6 +28,17 @@ data class ToolSearchResults(
     val sni: ToolSearchResult? = null
 )
 
+data class ToolScanProfile(
+    val sourceFinishedAt: Long,
+    val protocol: String,
+    val junkCount: Int = 0,
+    val junkMin: Int = 0,
+    val junkMax: Int = 0,
+    val i1: String = "",
+    val sni: String = "",
+    val attempts: Int = 0
+)
+
 @Singleton
 class ToolResultStore @Inject constructor(
     @ApplicationContext private val context: Context
@@ -79,4 +90,35 @@ internal fun decodeToolSearchResult(value: String): ToolSearchResult? = runCatch
         errorCode = json.optString("errorCode").takeUnless { it.isBlank() || it == "null" },
         errorMessage = json.optString("errorMessage").takeUnless { it.isBlank() || it == "null" }
     )
+}.getOrNull()
+
+fun ToolSearchResult.toScanProfile(): ToolScanProfile? = runCatching {
+    val result = JSONObject(resultJson)
+    when (operation) {
+        "find-junk" -> {
+            val junkCount = result.optInt("junkCount")
+            val junkMin = result.optInt("junkMin")
+            val junkMax = result.optInt("junkMax")
+            if (junkCount <= 0 || junkMax <= 0) return null
+            ToolScanProfile(
+                sourceFinishedAt = finishedAt,
+                protocol = "awg",
+                junkCount = junkCount,
+                junkMin = junkMin,
+                junkMax = junkMax,
+                i1 = result.optString("i1")
+            )
+        }
+        "find-sni" -> {
+            val sni = result.optString("sni")
+            if (sni.isBlank()) return null
+            ToolScanProfile(
+                sourceFinishedAt = finishedAt,
+                protocol = result.optString("protocol").ifBlank { "masque" },
+                sni = sni,
+                attempts = result.optInt("attempts", 3)
+            )
+        }
+        else -> null
+    }
 }.getOrNull()
