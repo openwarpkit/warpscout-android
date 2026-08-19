@@ -116,6 +116,8 @@
     <string name="core_not_built">The Go core AAR is not included in this build.</string>
     <string name="export">Export</string>
     <string name="best_endpoint">Best endpoint</string>
+    <string name="previous_best_endpoint">Previous node</string>
+    <string name="next_best_endpoint">Next node</string>
     <string name="plain_report">Plain report</string>
     <string name="wireguard_config">WireGuard config</string>
     <string name="amneziawg_config">AmneziaWG config</string>

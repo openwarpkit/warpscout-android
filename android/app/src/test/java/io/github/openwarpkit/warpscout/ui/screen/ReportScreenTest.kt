@@ -105,4 +105,40 @@ class ReportScreenTest {
             ).map(ReportEndpoint::endpoint)
         )
     }
+
+    @Test
+    fun selectsBestWorkingEndpointForEveryNode() {
+        fun endpoint(
+            address: String,
+            node: String,
+            endpointPing: Double,
+            tunnelPing: Double,
+            loss: Double,
+            working: Boolean = true
+        ) = ReportEndpoint(
+            endpoint = address,
+            region = "",
+            node = node,
+            country = "",
+            nodeLocation = "",
+            endpointPingMs = endpointPing,
+            tunnelPingMs = tunnelPing,
+            lossPercent = loss,
+            speedMbps = 0.0,
+            working = working,
+            durable = working
+        )
+        val results = listOf(
+            endpoint("hel-slow", "HEL", 9.0, 40.0, 0.0),
+            endpoint("hel-fast", "HEL", 12.0, 20.0, 0.0),
+            endpoint("arn-loss", "ARN", 5.0, 10.0, 2.0),
+            endpoint("dme", "DME", 15.0, 0.0, 0.0),
+            endpoint("failed", "AMS", 1.0, 1.0, 0.0, working = false)
+        )
+
+        assertEquals(
+            listOf("dme", "hel-fast", "arn-loss"),
+            bestEndpointsByNode(results).map(ReportEndpoint::endpoint)
+        )
+    }
 }

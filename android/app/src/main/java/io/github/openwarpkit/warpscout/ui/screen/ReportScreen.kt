@@ -5,8 +5,16 @@ import android.content.ClipboardManager
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -31,6 +39,8 @@ import androidx.compose.material.icons.outlined.ArrowDownward
 import androidx.compose.material.icons.outlined.ArrowUpward
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
+import androidx.compose.material.icons.outlined.ChevronLeft
+import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.SaveAlt
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.Button
@@ -51,6 +61,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -58,6 +69,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -452,13 +464,78 @@ private fun ReportSection(
 @Composable
 private fun BestEndpointDetails(item: HistoryEntity) {
     val context = LocalContext.current
-    val endpoint = remember(item.resultJson, item.bestEndpoint) {
-        parseReport(item.resultJson.orEmpty()).firstOrNull { it.endpoint == item.bestEndpoint }
+    val endpoints = remember(item.resultJson) {
+        bestEndpointsByNode(parseReport(item.resultJson.orEmpty()))
     }
-    if (endpoint == null) {
+    if (endpoints.isEmpty()) {
         Text(stringResource(R.string.no_results), color = MaterialTheme.colorScheme.onSurfaceVariant)
         return
     }
+    var selectedIndex by rememberSaveable(item.id) { mutableIntStateOf(0) }
+    selectedIndex = selectedIndex.coerceIn(0, endpoints.lastIndex)
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(
+                enabled = selectedIndex > 0,
+                onClick = { selectedIndex-- }
+            ) {
+                Icon(
+                    Icons.Outlined.ChevronLeft,
+                    contentDescription = stringResource(R.string.previous_best_endpoint)
+                )
+            }
+            Text(
+                text = "${endpoints[selectedIndex].node.ifBlank { "-" }} · ${selectedIndex + 1} / ${endpoints.size}",
+                style = MaterialTheme.typography.labelLarge,
+                fontFamily = FontFamily.Monospace
+            )
+            IconButton(
+                enabled = selectedIndex < endpoints.lastIndex,
+                onClick = { selectedIndex++ }
+            ) {
+                Icon(
+                    Icons.Outlined.ChevronRight,
+                    contentDescription = stringResource(R.string.next_best_endpoint)
+                )
+            }
+        }
+        AnimatedContent(
+            targetState = selectedIndex,
+            transitionSpec = {
+                val direction = if (targetState > initialState) 1 else -1
+                (slideInHorizontally { direction * it } + fadeIn()) togetherWith
+                    (slideOutHorizontally { -direction * it } + fadeOut()) using
+                    SizeTransform(clip = false)
+            },
+            label = "best-endpoint-page",
+            modifier = Modifier.pointerInput(endpoints.size) {
+                var dragDistance = 0f
+                detectHorizontalDragGestures(
+                    onDragStart = { dragDistance = 0f },
+                    onHorizontalDrag = { change, amount ->
+                        change.consume()
+                        dragDistance += amount
+                    },
+                    onDragEnd = {
+                        when {
+                            dragDistance < -48f && selectedIndex < endpoints.lastIndex -> selectedIndex++
+                            dragDistance > 48f && selectedIndex > 0 -> selectedIndex--
+                        }
+                    }
+                )
+            }
+        ) { index ->
+            BestEndpointCard(endpoints[index], context)
+        }
+    }
+}
+
+@Composable
+private fun BestEndpointCard(endpoint: ReportEndpoint, context: android.content.Context) {
     Surface(
         shape = RoundedCornerShape(12.dp),
         color = MaterialTheme.colorScheme.surfaceContainer,
@@ -484,7 +561,7 @@ private fun BestEndpointDetails(item: HistoryEntity) {
                 )
                 IconButton(onClick = {
                     context.getSystemService(ClipboardManager::class.java)
-                        .setPrimaryClip(ClipData.newPlainText("WARPSCOUT endpoint", endpoint.endpoint))
+                        .setPrimaryClip(ClipData.newPlainText("WarpScout endpoint", endpoint.endpoint))
                 }) {
                     Icon(
                         Icons.Outlined.ContentCopy,
@@ -512,6 +589,25 @@ private fun BestEndpointDetails(item: HistoryEntity) {
             }
         }
     }
+}
+
+internal fun bestEndpointsByNode(results: List<ReportEndpoint>): List<ReportEndpoint> =
+    results
+        .asSequence()
+        .filter { it.working && it.durable }
+        .groupBy { it.node.ifBlank { "-" } }
+        .values
+        .mapNotNull { group -> group.minWithOrNull(::compareBestEndpoints) }
+        .sortedWith(::compareBestEndpoints)
+
+private fun compareBestEndpoints(first: ReportEndpoint, second: ReportEndpoint): Int {
+    val loss = first.lossPercent.compareTo(second.lossPercent)
+    if (loss != 0) return loss
+    val firstPing = first.tunnelPingMs.takeIf { it > 0 } ?: first.endpointPingMs
+    val secondPing = second.tunnelPingMs.takeIf { it > 0 } ?: second.endpointPingMs
+    val ping = firstPing.compareTo(secondPing)
+    if (ping != 0) return ping
+    return first.endpoint.compareTo(second.endpoint)
 }
 
 @Composable

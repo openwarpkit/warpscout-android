@@ -116,6 +116,8 @@
     <string name="core_not_built">Go core AAR не включён в эту сборку.</string>
     <string name="export">Экспорт</string>
     <string name="best_endpoint">Лучший адрес</string>
+    <string name="previous_best_endpoint">Предыдущий узел</string>
+    <string name="next_best_endpoint">Следующий узел</string>
     <string name="plain_report">Текстовый отчёт</string>
     <string name="wireguard_config">Конфигурация WireGuard</string>
     <string name="amneziawg_config">Конфигурация AmneziaWG</string>
