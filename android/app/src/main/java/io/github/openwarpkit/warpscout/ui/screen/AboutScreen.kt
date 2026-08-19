@@ -69,7 +69,6 @@ private val credits = listOf(
 
 private val projectLinks = listOf(
     ProjectLink(R.string.link_github, "https://github.com/openwarpkit/warpscout-android", R.drawable.ic_github),
-    ProjectLink(R.string.link_telegram, "https://t.me/findllimonix", R.drawable.ic_telegram),
     ProjectLink(R.string.link_channel, "https://t.me/+Yr77WgKrgu01Y2Ni", R.drawable.ic_channel),
     ProjectLink(R.string.link_chat, "https://t.me/+uP82UlLX6Ls3ZDdi", R.drawable.ic_chat),
     ProjectLink(R.string.link_donate, "https://pay.cloudtips.ru/p/205564c3", R.drawable.ic_cloudtips)

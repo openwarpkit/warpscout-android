@@ -95,7 +95,6 @@
     <string name="credit_amnezia">the user-space AmneziaWG implementation</string>
     <string name="credit_bubbletea">the framework behind the live dashboard</string>
     <string name="link_github">GitHub</string>
-    <string name="link_telegram">Telegram</string>
     <string name="link_channel">Channel</string>
     <string name="link_chat">Chat</string>
     <string name="link_donate">Donate</string>

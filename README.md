@@ -1,4 +1,6 @@
-# WARPSCOUT for Android
+# WarpScout for Android
+
+<img src="android/app/src/main/res/drawable-nodpi/warpscout_cloud.png" alt="WarpScout cloud" width="128">
 
 [Русская версия](README_RU.md)
 
