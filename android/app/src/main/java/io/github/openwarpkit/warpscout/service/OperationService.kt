@@ -19,6 +19,8 @@ import io.github.openwarpkit.warpscout.core.OperationState
 import io.github.openwarpkit.warpscout.data.AccountStore
 import io.github.openwarpkit.warpscout.data.HistoryDao
 import io.github.openwarpkit.warpscout.data.HistoryEntity
+import io.github.openwarpkit.warpscout.data.ToolResultStore
+import io.github.openwarpkit.warpscout.data.ToolSearchResult
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -35,10 +37,12 @@ class OperationService : Service() {
     @Inject lateinit var operations: OperationRepository
     @Inject lateinit var accountStore: AccountStore
     @Inject lateinit var historyDao: HistoryDao
+    @Inject lateinit var toolResultStore: ToolResultStore
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var activeJob: Job? = null
     private var activeHistoryId: Long? = null
+    private var activePayloadJson: String = "{}"
     private var pendingRegisteredAccount: String? = null
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
     private val stoppedByUser = AtomicBoolean(false)
@@ -78,6 +82,7 @@ class OperationService : Service() {
         stoppedByNetwork.set(false)
         finishing.set(false)
         pendingRegisteredAccount = null
+        activePayloadJson = payload
 
         val initial = OperationState(
             running = true,
@@ -137,7 +142,8 @@ class OperationService : Service() {
                 operations.update {
                     it.copy(
                         errorCode = error.optString("code"),
-                        errorMessage = error.optString("message")
+                        errorMessage = error.optString("message"),
+                        latestResultJson = error.opt("payload")?.toString() ?: it.latestResultJson
                     )
                 }
             }
@@ -253,12 +259,13 @@ class OperationService : Service() {
             }
         )
         operations.setState(finalState)
+        val finishedAt = System.currentTimeMillis()
         activeHistoryId?.let { id ->
             historyDao.find(id)?.let { item ->
                 historyDao.update(
                     item.copy(
                         status = status,
-                        finishedAt = System.currentTimeMillis(),
+                        finishedAt = finishedAt,
                         progressCompleted = finalState.completed,
                         progressTotal = finalState.total,
                         workingCount = finalState.working,
@@ -269,7 +276,24 @@ class OperationService : Service() {
                 )
             }
         }
+        if (
+            finalState.operation in setOf("find-junk", "find-sni") &&
+            !finalState.latestResultJson.isNullOrBlank()
+        ) {
+            toolResultStore.save(
+                ToolSearchResult(
+                    operation = finalState.operation,
+                    requestJson = activePayloadJson,
+                    resultJson = finalState.latestResultJson,
+                    status = status,
+                    finishedAt = finishedAt,
+                    errorCode = finalState.errorCode,
+                    errorMessage = finalState.errorMessage
+                )
+            )
+        }
         activeHistoryId = null
+        activePayloadJson = "{}"
         pendingRegisteredAccount = null
         activeJob = null
         unregisterNetworkCallback()

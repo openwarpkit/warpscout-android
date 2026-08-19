@@ -15,6 +15,7 @@ import io.github.openwarpkit.warpscout.data.HistoryDao
 import io.github.openwarpkit.warpscout.data.HistoryEntity
 import io.github.openwarpkit.warpscout.data.ReportImageDocument
 import io.github.openwarpkit.warpscout.data.SettingsStore
+import io.github.openwarpkit.warpscout.data.ToolResultStore
 import io.github.openwarpkit.warpscout.data.UpdateChecker
 import io.github.openwarpkit.warpscout.data.UpdateResult
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -33,6 +34,7 @@ class AppViewModel @Inject constructor(
     private val operations: OperationRepository,
     private val historyDao: HistoryDao,
     private val exportManager: ExportManager,
+    private val toolResultStore: ToolResultStore,
     private val updateChecker: UpdateChecker,
     val coreBridge: CoreBridge
 ) : ViewModel() {
@@ -53,6 +55,11 @@ class AppViewModel @Inject constructor(
 
     val operation = operations.state
     val history = historyDao.observeAll().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val toolResults = toolResultStore.results.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5_000),
+        io.github.openwarpkit.warpscout.data.ToolSearchResults()
+    )
     val settings = settingsStore.settings.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AppSettings())
 
     init {
@@ -182,6 +189,7 @@ class AppViewModel @Inject constructor(
                 accountStore.clear()
                 historyDao.clearAll()
                 settingsStore.clear()
+                toolResultStore.clear()
                 exportManager.clearCache()
             }.onSuccess {
                 operations.clearFinished()
