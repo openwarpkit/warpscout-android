@@ -462,10 +462,10 @@ internal fun parseReport(json: String): List<ReportEndpoint> {
                 node = it.optString("node"),
                 country = it.optString("country"),
                 nodeLocation = it.optString("nodeLocation"),
-                endpointPingMs = it.optDouble("endpointPingMs"),
-                tunnelPingMs = it.optDouble("tunnelPingMs"),
-                lossPercent = it.optDouble("lossPercent"),
-                speedMbps = it.optDouble("speedMbps"),
+                endpointPingMs = measurementOrZero(it.optDouble("endpointPingMs")),
+                tunnelPingMs = measurementOrZero(it.optDouble("tunnelPingMs")),
+                lossPercent = measurementOrZero(it.optDouble("lossPercent")),
+                speedMbps = measurementOrZero(it.optDouble("speedMbps")),
                 working = it.optBoolean("working"),
                 durable = it.optBoolean("durable")
             )
@@ -486,6 +486,9 @@ internal fun withFlag(code: String, value: String): String {
 
 internal fun formatLatency(value: Double): String = if (value > 0) "%.1f ms".format(value) else "-"
 
-internal fun formatPercent(value: Double, measured: Boolean): String = if (measured) "%.0f%%".format(value) else "-"
+internal fun measurementOrZero(value: Double): Double = if (value.isFinite()) value else 0.0
+
+internal fun formatPercent(value: Double, measured: Boolean): String =
+    if (measured && value.isFinite() && value >= 0) "%.0f%%".format(value) else "-"
 
 internal fun formatSpeed(value: Double): String = if (value > 0) "%.1f Mbps".format(value) else "-"
