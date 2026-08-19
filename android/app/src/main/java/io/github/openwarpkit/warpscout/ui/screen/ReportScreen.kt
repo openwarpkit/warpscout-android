@@ -229,32 +229,30 @@ private fun ReportContent(
                         Text(stringResource(R.string.share_txt))
                     }
                 }
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    OutlinedButton(onClick = { tableExpanded = !tableExpanded }) {
-                        Icon(
-                            if (tableExpanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
-                            contentDescription = null
-                        )
-                        Text(
-                            stringResource(
-                                if (tableExpanded) R.string.hide_report_table else R.string.show_report_table
-                            ),
-                            modifier = Modifier.padding(start = 8.dp)
-                        )
-                    }
-                    FilterChip(
-                        selected = hideEmptyColumns,
-                        onClick = { hideEmptyColumns = !hideEmptyColumns },
-                        label = { Text(stringResource(R.string.hide_empty_columns)) }
+                OutlinedButton(onClick = { tableExpanded = !tableExpanded }) {
+                    Icon(
+                        if (tableExpanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
+                        contentDescription = null
+                    )
+                    Text(
+                        stringResource(
+                            if (tableExpanded) R.string.hide_report_table else R.string.show_report_table
+                        ),
+                        modifier = Modifier.padding(start = 8.dp)
                     )
                 }
             }
             HorizontalDivider()
         }
         if (tableExpanded) {
+            item("report-table-options") {
+                FilterChip(
+                    selected = hideEmptyColumns,
+                    onClick = { hideEmptyColumns = !hideEmptyColumns },
+                    label = { Text(stringResource(R.string.hide_empty_columns)) },
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+                )
+            }
             item("report-header") {
                 Box(
                     modifier = Modifier
