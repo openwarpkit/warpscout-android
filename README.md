@@ -1,115 +1,115 @@
 # WarpScout for Android
 
-<img src="android/app/src/main/res/drawable-nodpi/warpscout_cloud.png" alt="WarpScout cloud" width="128">
+<img src="android/app/src/main/res/drawable-nodpi/warpscout_cloud.png" alt="Облако WarpScout" width="128">
 
-[Русская версия](README_RU.md)
+[English version](README.md)
 
-## About
+## О проекте
 
-WARPSCOUT for Android is a native Android interface under development for local WARP account registration, endpoint scanning, discovery tools, configuration export, and loopback SOCKS operation.
+WARPSCOUT for Android представляет собой разрабатываемый нативный Android-интерфейс для регистрации WARP-аккаунта, сканирования адресов, инструментов поиска, экспорта конфигураций и локального SOCKS-сервера.
 
-Scanning runs on the Android device. Accounts and scan results are not stored on an OpenWarpKit server.
+Сканирование выполняется на Android-устройстве. Аккаунты и результаты не сохраняются на сервере OpenWarpKit.
 
-## Features
+## Возможности
 
-The first Android release targets:
+Цели первого Android-релиза:
 
-- Standard, Durable, and Full scan presets
-- WireGuard, AmneziaWG, MASQUE H3, and MASQUE H2
-- IPv4, IPv6, node filters, country filters, custom targets, MTU, DNS, and speed tests
-- AWG junk and I1 discovery
-- MASQUE SNI discovery
-- WARP-in-WARP scans
-- Scan history stored on the device
-- WireGuard, AmneziaWG, usque, Mihomo, plain report, and best endpoint export
-- Loopback-only SOCKS server
-- English and Russian interface
-- Foreground operation service with progress and stop action
+- Пресеты Standard, Durable и Full
+- WireGuard, AmneziaWG, MASQUE H3 и MASQUE H2
+- IPv4, IPv6, фильтры узлов и стран, свои диапазоны, MTU, DNS и проверка скорости
+- Поиск AWG junk и I1
+- Поиск MASQUE SNI
+- Сканирование WARP-in-WARP
+- Локальная история сканирований
+- Экспорт WireGuard, AmneziaWG, usque, Mihomo, текстового отчёта и лучшего адреса
+- SOCKS-сервер только на loopback-интерфейсе
+- Русский и английский интерфейс
+- Foreground Service с прогрессом и остановкой операции
 
-## Screenshots
+## Скриншоты
 
-| Onboarding | Scan |
+| Регистрация аккаунта | Сканирование |
 | --- | --- |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/dark/onboarding.png"><source media="(prefers-color-scheme: light)" srcset="docs/screenshots/light/onboarding.png"><img src="docs/screenshots/light/onboarding.png" alt="Account registration screen"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/dark/scan.png"><source media="(prefers-color-scheme: light)" srcset="docs/screenshots/light/scan.png"><img src="docs/screenshots/light/scan.png" alt="Standard scan screen"></picture> |
-| History | Tools |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/dark/history.png"><source media="(prefers-color-scheme: light)" srcset="docs/screenshots/light/history.png"><img src="docs/screenshots/light/history.png" alt="Scan history"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/dark/tools.png"><source media="(prefers-color-scheme: light)" srcset="docs/screenshots/light/tools.png"><img src="docs/screenshots/light/tools.png" alt="Discovery and SOCKS tools"></picture> |
-| Settings | Expert mode |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/dark/settings.png"><source media="(prefers-color-scheme: light)" srcset="docs/screenshots/light/settings.png"><img src="docs/screenshots/light/settings.png" alt="Application settings"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/dark/expert.png"><source media="(prefers-color-scheme: light)" srcset="docs/screenshots/light/expert.png"><img src="docs/screenshots/light/expert.png" alt="Expert scan options"></picture> |
-| Scan in progress | Report table: endpoints and ping |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/dark/progress.png"><source media="(prefers-color-scheme: light)" srcset="docs/screenshots/light/progress.png"><img src="docs/screenshots/light/progress.png" alt="Active endpoint scan progress"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/dark/results.png"><source media="(prefers-color-scheme: light)" srcset="docs/screenshots/light/results.png"><img src="docs/screenshots/light/results.png" alt="AWG report endpoints and ping"></picture> |
-| Report table: regions and nodes | Best endpoint |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/dark/results-nodes.png"><source media="(prefers-color-scheme: light)" srcset="docs/screenshots/light/results-nodes.png"><img src="docs/screenshots/light/results-nodes.png" alt="AWG report regions, nodes, and locations"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/dark/best-endpoint.png"><source media="(prefers-color-scheme: light)" srcset="docs/screenshots/light/best-endpoint.png"><img src="docs/screenshots/light/best-endpoint.png" alt="Best endpoint details"></picture> |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/dark/onboarding.png"><source media="(prefers-color-scheme: light)" srcset="docs/screenshots/light/onboarding.png"><img src="docs/screenshots/light/onboarding.png" alt="Экран регистрации аккаунта"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/dark/scan.png"><source media="(prefers-color-scheme: light)" srcset="docs/screenshots/light/scan.png"><img src="docs/screenshots/light/scan.png" alt="Стандартное сканирование"></picture> |
+| История | Инструменты |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/dark/history.png"><source media="(prefers-color-scheme: light)" srcset="docs/screenshots/light/history.png"><img src="docs/screenshots/light/history.png" alt="История сканирований"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/dark/tools.png"><source media="(prefers-color-scheme: light)" srcset="docs/screenshots/light/tools.png"><img src="docs/screenshots/light/tools.png" alt="Инструменты поиска и SOCKS"></picture> |
+| Настройки | Экспертный режим |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/dark/settings.png"><source media="(prefers-color-scheme: light)" srcset="docs/screenshots/light/settings.png"><img src="docs/screenshots/light/settings.png" alt="Настройки приложения"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/dark/expert.png"><source media="(prefers-color-scheme: light)" srcset="docs/screenshots/light/expert.png"><img src="docs/screenshots/light/expert.png" alt="Параметры экспертного режима"></picture> |
+| Процесс сканирования | Таблица: адреса и пинг |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/dark/progress.png"><source media="(prefers-color-scheme: light)" srcset="docs/screenshots/light/progress.png"><img src="docs/screenshots/light/progress.png" alt="Прогресс активного сканирования"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/dark/results.png"><source media="(prefers-color-scheme: light)" srcset="docs/screenshots/light/results.png"><img src="docs/screenshots/light/results.png" alt="Адреса и пинг в отчёте AWG"></picture> |
+| Таблица: регионы и узлы | Лучший адрес |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/dark/results-nodes.png"><source media="(prefers-color-scheme: light)" srcset="docs/screenshots/light/results-nodes.png"><img src="docs/screenshots/light/results-nodes.png" alt="Регионы, узлы и расположения в отчёте AWG"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/dark/best-endpoint.png"><source media="(prefers-color-scheme: light)" srcset="docs/screenshots/light/best-endpoint.png"><img src="docs/screenshots/light/best-endpoint.png" alt="Данные лучшего адреса"></picture> |
 
-## Installation
+## Установка
 
-Download an APK from [Android releases](https://github.com/openwarpkit/warpscout-android/releases). Choose the file for the device ABI or use the universal APK.
+Скачайте APK из [Android releases](https://github.com/openwarpkit/warpscout-android/releases). Выберите файл для архитектуры устройства или universal APK.
 
-Android releases use tags in the form `android-vMAJOR.MINOR.PATCH`. CLI tags use the upstream `vMAJOR.MINOR.PATCH` format.
+Android-релизы используют теги вида `android-vMAJOR.MINOR.PATCH`. CLI использует upstream-теги вида `vMAJOR.MINOR.PATCH`.
 
-## Supported Android versions
+## Поддерживаемые версии Android
 
-| Item | Support |
+| Параметр | Поддержка |
 | --- | --- |
-| Minimum Android version | Android 8.0, API 26 |
-| Target Android version | Android 17, API 37 |
-| arm64-v8a | Supported |
-| armeabi-v7a | Supported |
-| x86_64 | Supported |
+| Минимальная версия Android | Android 8.0, API 26 |
+| Целевая версия Android | Android 17, API 37 |
+| arm64-v8a | Поддерживается |
+| armeabi-v7a | Поддерживается |
+| x86_64 | Поддерживается |
 
-## Permissions and privacy
+## Разрешения и приватность
 
-The application uses network access for registration, scanning, update checks, and SOCKS traffic. A foreground service keeps an active operation running when the interface is not visible. Android 13 and later may request notification permission for foreground progress.
+Сетевой доступ используется для регистрации, сканирования, проверки обновлений и SOCKS-трафика. Foreground Service продолжает активную операцию, когда интерфейс не открыт. На Android 13 и новее приложение может запросить разрешение на уведомления с прогрессом.
 
-Account JSON is encrypted with AES-GCM using a key held by Android Keystore. Configuration exports are generated only on request and shared from application-private cache. Secrets are not written to Room, DataStore, application logs, or error reports. Scan history contains operation parameters and results without account credentials.
+Account JSON шифруется с помощью AES-GCM и ключа из Android Keystore. Экспортируемые конфигурации создаются только по запросу и передаются из приватного кэша приложения. Секреты не записываются в Room, DataStore, логи приложения и отчёты об ошибках. История содержит параметры и результаты без данных WARP-аккаунта.
 
-The update checker reads only releases from `openwarpkit/warpscout-android` whose tags start with `android-v`.
+Проверка обновлений читает только релизы `openwarpkit/warpscout-android` с тегами, начинающимися на `android-v`.
 
-## Build from source
+## Сборка из исходного кода
 
-Required tools:
+Необходимые инструменты:
 
-| Tool | Version |
+| Инструмент | Версия |
 | --- | --- |
-| Go | Version from `go.mod` |
+| Go | Версия из `go.mod` |
 | JDK | 17 |
 | Gradle | 9.5.0 |
 | Android Gradle Plugin | 9.3.0 |
 | Android SDK | API 37 |
 | Android NDK | 28.2.13676358 |
 
-Build and test the Go code:
+Проверка Go-кода:
 
 ```sh
 go test ./...
 ```
 
-Build the Go Mobile AAR on Linux or macOS:
+Сборка Go Mobile AAR на Linux или macOS:
 
 ```sh
 ./scripts/build-mobile.sh
 ```
 
-Build the Go Mobile AAR on Windows:
+Сборка Go Mobile AAR на Windows:
 
 ```powershell
 ./scripts/build-mobile.ps1
 ```
 
-Build the debug APK:
+Сборка debug APK:
 
 ```sh
 ./android/gradlew -p android :app:assembleDebug
 ```
 
-The AAR build targets `android/arm64`, `android/arm`, and `android/amd64`. The Android project packages them as `arm64-v8a`, `armeabi-v7a`, and `x86_64`.
+AAR собирается для `android/arm64`, `android/arm` и `android/amd64`. Android-проект упаковывает их как `arm64-v8a`, `armeabi-v7a` и `x86_64`.
 
-## Release process
+## Выпуск релиза
 
-Push a tag such as `android-v1.0.0`. The Android release workflow derives `versionName` and `versionCode`, builds the AAR and four APK variants, signs the APKs, verifies signatures and native libraries, runs an x86_64 emulator smoke test, generates checksums and provenance, and publishes the GitHub Release.
+Отправьте тег, например `android-v1.0.0`. Workflow определит `versionName` и `versionCode`, соберёт AAR и четыре варианта APK, подпишет APK, проверит подпись и native libraries, выполнит smoke test на x86_64 emulator, создаст контрольные суммы и provenance, затем опубликует GitHub Release.
 
-The release signing key is supplied through GitHub Secrets. A manual workflow run builds an unsigned universal APK and does not create a release.
+Ключ подписи передаётся через GitHub Secrets. Ручной запуск workflow собирает неподписанный universal APK и не создаёт релиз.
 
-## Upstream and attribution
+## Upstream и атрибуция
 
 WARPSCOUT for Android is an independent OpenWarpKit project based on the WARPSCOUT CLI.
 
@@ -119,13 +119,13 @@ Original author: Nikita S. (@vernette)
 
 This repository is not an official Android release maintained by the upstream author.
 
-The repository preserves the original Git history and license. Upstream synchronization rules and the current base revision are recorded in [UPSTREAM.md](UPSTREAM.md).
+Репозиторий сохраняет исходную Git-историю и лицензию. Правила синхронизации и текущая базовая ревизия указаны в [UPSTREAM.md](UPSTREAM.md).
 
-## Credits
+## Авторы и зависимости
 
-OpenWarpKit maintains the Android application and Android-specific changes. [Nikita S. (@vernette)](https://github.com/vernette) is the author of the original WARPSCOUT CLI.
+OpenWarpKit поддерживает Android-приложение и изменения для Android. [Nikita S. (@vernette)](https://github.com/vernette) является автором оригинального WARPSCOUT CLI.
 
-Original WARPSCOUT credits are preserved with direct links:
+Сохранены прямые ссылки из Credits оригинального проекта:
 
 - [Cloudflare WARP](https://one.one.one.one/)
 - [puzige/CloudflareWarpSpeedTest](https://github.com/puzige/CloudflareWarpSpeedTest)
@@ -137,10 +137,10 @@ Original WARPSCOUT credits are preserved with direct links:
 - [amnezia-vpn/amneziawg-go](https://github.com/amnezia-vpn/amneziawg-go)
 - [charmbracelet/bubbletea](https://github.com/charmbracelet/bubbletea)
 
-Android integration uses [Go Mobile](https://pkg.go.dev/golang.org/x/mobile/cmd/gomobile), [Jetpack Compose](https://developer.android.com/compose), [Hilt](https://developer.android.com/training/dependency-injection/hilt-android), [Room](https://developer.android.com/training/data-storage/room), and [DataStore](https://developer.android.com/topic/libraries/architecture/datastore).
+Android-интеграция использует [Go Mobile](https://pkg.go.dev/golang.org/x/mobile/cmd/gomobile), [Jetpack Compose](https://developer.android.com/compose), [Hilt](https://developer.android.com/training/dependency-injection/hilt-android), [Room](https://developer.android.com/training/data-storage/room) и [DataStore](https://developer.android.com/topic/libraries/architecture/datastore).
 
-See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for distributed dependency notices.
+Уведомления о распространяемых зависимостях находятся в [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
-## License
+## Лицензия
 
-The project is distributed under the MIT License. The original copyright notice for Nikita S. is preserved in [LICENSE](LICENSE). OpenWarpKit authors the Android application and changes, not the original CLI.
+Проект распространяется по лицензии MIT. Исходная строка copyright Nikita S. сохранена в [LICENSE](LICENSE). OpenWarpKit является автором Android-приложения и изменений, но не оригинального CLI.
