@@ -149,6 +149,6 @@ jobs:
       - uses: softprops/action-gh-release@v2
         if: env.PUBLISH_RELEASE == 'true'
         with:
-          name: WARPSCOUT for Android ${{ env.WARPSCOUT_VERSION_NAME }}
+          name: v${{ env.WARPSCOUT_VERSION_NAME }}
           body_path: release-notes.md
           files: dist/*
