@@ -279,13 +279,16 @@ fun ScanScreen(viewModel: AppViewModel) {
                 Spacer(Modifier.height(88.dp))
             }
             if (operation.operation != "scan") {
-                ScanStartButton(
-                    enabled = !operation.running,
-                    onClick = ::startScan,
+                Box(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
                         .padding(end = 20.dp, bottom = 8.dp)
-                )
+                ) {
+                    ScanStartButton(
+                        enabled = !operation.running,
+                        onClick = ::startScan
+                    )
+                }
             }
         }
     }
