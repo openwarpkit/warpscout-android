@@ -32,6 +32,9 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "UPSTREAM_TAG", "\"${upstreamTag.get()}\"")
         buildConfigField("String", "UPSTREAM_COMMIT", "\"${upstreamCommit.get()}\"")
+        ndk {
+            abiFilters += setOf("arm64-v8a", "armeabi-v7a", "x86_64")
+        }
     }
 
     signingConfigs {

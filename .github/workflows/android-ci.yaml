@@ -110,7 +110,8 @@ jobs:
           arch: x86_64
           profile: pixel_6
           script: |
-            APK=$(find apks -name '*universal-debug.apk' -print -quit)
+            APK=$(find "$GITHUB_WORKSPACE/apks" -name '*universal-debug.apk' -print -quit)
+            test -n "$APK"
             adb install "$APK"
             adb shell am start -W -n io.github.openwarpkit.warpscout.debug/io.github.openwarpkit.warpscout.MainActivity
             adb shell pidof io.github.openwarpkit.warpscout.debug
@@ -124,9 +125,9 @@ jobs:
         with:
           globs: |
             README.md
-            README_RU.md
+            README_EN.md
             UPSTREAM.md
             THIRD_PARTY_NOTICES.md
       - uses: lycheeverse/lychee-action@v2
         with:
-          args: --no-progress --exclude-path go.sum README.md README_RU.md UPSTREAM.md THIRD_PARTY_NOTICES.md
+          args: --no-progress --exclude-path go.sum README.md README_EN.md UPSTREAM.md THIRD_PARTY_NOTICES.md

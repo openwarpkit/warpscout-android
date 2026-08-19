@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 
-const files = ["README.md", "README_RU.md"];
+const files = ["README.md", "README_EN.md"];
 const bannedCharacters = ["\u2014", "\u2013"];
 const emoji = /[\u{1F1E6}-\u{1F1FF}\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}]/u;
 const attribution = [

@@ -1,8 +1,19 @@
-# WarpScout for Android
+<p align="center">
+  <img src="android/app/src/main/res/drawable-nodpi/warpscout_cloud.png" width="200" alt="WarpScout cloud">
+</p>
 
-<img src="android/app/src/main/res/drawable-nodpi/warpscout_cloud.png" alt="WarpScout cloud" width="128">
+<h1 align="center">WarpScout for Android</h1>
 
-[Русская версия](README_RU.md)
+<p align="center">Local WARP endpoint scanning and configuration tools for Android.</p>
+
+<p align="center">
+  <a href="https://github.com/openwarpkit/warpscout-android/actions/workflows/android-ci.yaml"><img src="https://img.shields.io/github/actions/workflow/status/openwarpkit/warpscout-android/android-ci.yaml?branch=android&amp;label=CI" alt="CI"></a>
+  <a href="https://github.com/openwarpkit/warpscout-android/releases/latest"><img src="https://img.shields.io/github/v/release/openwarpkit/warpscout-android?filter=android-v*&amp;label=Release" alt="Release"></a>
+  <a href="https://github.com/openwarpkit/warpscout-android/releases"><img src="https://img.shields.io/github/downloads/openwarpkit/warpscout-android/total" alt="Downloads"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License"></a>
+</p>
+
+<p align="center"><strong><a href="README.md">Русская версия</a></strong></p>
 
 ## About
 
