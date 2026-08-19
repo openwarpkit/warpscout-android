@@ -1,10 +1,12 @@
 package io.github.openwarpkit.warpscout.ui.screen
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -12,7 +14,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -39,7 +40,7 @@ import io.github.openwarpkit.warpscout.core.OperationRequest
 import io.github.openwarpkit.warpscout.core.ScanPreset
 import io.github.openwarpkit.warpscout.core.resolveScanOptions
 import io.github.openwarpkit.warpscout.ui.AppViewModel
-import io.github.openwarpkit.warpscout.ui.components.OperationPanel
+import io.github.openwarpkit.warpscout.ui.components.ScanStartButton
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -73,7 +74,79 @@ fun ScanScreen(viewModel: AppViewModel) {
     var through by rememberSaveable { mutableStateOf("") }
     var innerProtocol by rememberSaveable { mutableStateOf("wg") }
 
-    Scaffold(topBar = { TopAppBar(title = { Text(stringResource(R.string.scan_title)) }) }) { padding ->
+    fun startScan() {
+        val resolved = resolveScanOptions(
+            preset = preset,
+            expertEnabled = expert,
+            expert = ExpertScanOptions(
+                protocol = protocol,
+                innerProtocol = innerProtocol,
+                ipv6 = ipv6,
+                port = port.intOr(0),
+                timeoutSec = timeout.intOr(2),
+                jobs = jobs.intOr(10),
+                customTarget = target.trim(),
+                tunnelPingCount = tunnelPings.intOr(0),
+                awgJunkCount = junkCount.intOr(0),
+                awgJunkMin = junkMin.intOr(0),
+                awgJunkMax = junkMax.intOr(0),
+                awgI1 = i1.trim(),
+                masqueSni = masqueSni.trim(),
+                masqueAttempts = masqueAttempts.intOr(3),
+                includeNodes = nodes.stringList(),
+                includeCountries = countries.stringList(),
+                mtu = mtu.intOr(0),
+                dns = dns.stringList(),
+                speedTest = speedTest,
+                throughEndpoint = if (nested) through.trim() else ""
+            )
+        )
+        val payload = JSONObject()
+            .put("protocol", resolved.protocol)
+            .put("innerProtocol", resolved.innerProtocol)
+            .put("ipv6", resolved.ipv6)
+            .put("port", resolved.port)
+            .put("timeoutSec", resolved.timeoutSec)
+            .put("jobs", resolved.jobs)
+            .put("samplePerSubnet", resolved.samplePerSubnet)
+            .put("full", resolved.full)
+            .put("tunnelPingCount", resolved.tunnelPingCount)
+            .put("customTarget", resolved.customTarget)
+            .put("awgJunkCount", resolved.awgJunkCount)
+            .put("awgJunkMin", resolved.awgJunkMin)
+            .put("awgJunkMax", resolved.awgJunkMax)
+            .put("awgI1", resolved.awgI1)
+            .put("masqueSni", resolved.masqueSni)
+            .put("masqueAttempts", resolved.masqueAttempts)
+            .put("includeNodes", JSONArray(resolved.includeNodes))
+            .put("includeCountries", JSONArray(resolved.includeCountries))
+            .put("mtu", resolved.mtu)
+            .put("dns", JSONArray(resolved.dns))
+            .put("speedTest", resolved.speedTest)
+            .put("throughEndpoint", resolved.throughEndpoint)
+            .toString()
+        viewModel.start(OperationRequest("scan", payload, preset.id, resolved.protocol))
+    }
+
+    Scaffold(
+        topBar = { TopAppBar(title = { Text(stringResource(R.string.scan_title)) }) },
+        bottomBar = {
+            if (operation.operation != "scan") {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 12.dp),
+                    contentAlignment = androidx.compose.ui.Alignment.CenterEnd
+                ) {
+                    ScanStartButton(
+                        enabled = !operation.running,
+                        onClick = ::startScan
+                    )
+                }
+            }
+        },
+        contentWindowInsets = WindowInsets(0, 0, 0, 0)
+    ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -183,66 +256,6 @@ fun ScanScreen(viewModel: AppViewModel) {
                         FilterChip(selected = innerProtocol == "awg", onClick = { innerProtocol = "awg" }, label = { Text(stringResource(R.string.inner_awg)) })
                     }
                 }
-            }
-            Button(
-                onClick = {
-                    val resolved = resolveScanOptions(
-                        preset = preset,
-                        expertEnabled = expert,
-                        expert = ExpertScanOptions(
-                            protocol = protocol,
-                            innerProtocol = innerProtocol,
-                            ipv6 = ipv6,
-                            port = port.intOr(0),
-                            timeoutSec = timeout.intOr(2),
-                            jobs = jobs.intOr(10),
-                            customTarget = target.trim(),
-                            tunnelPingCount = tunnelPings.intOr(0),
-                            awgJunkCount = junkCount.intOr(0),
-                            awgJunkMin = junkMin.intOr(0),
-                            awgJunkMax = junkMax.intOr(0),
-                            awgI1 = i1.trim(),
-                            masqueSni = masqueSni.trim(),
-                            masqueAttempts = masqueAttempts.intOr(3),
-                            includeNodes = nodes.stringList(),
-                            includeCountries = countries.stringList(),
-                            mtu = mtu.intOr(0),
-                            dns = dns.stringList(),
-                            speedTest = speedTest,
-                            throughEndpoint = if (nested) through.trim() else ""
-                        )
-                    )
-                    val payload = JSONObject()
-                        .put("protocol", resolved.protocol)
-                        .put("innerProtocol", resolved.innerProtocol)
-                        .put("ipv6", resolved.ipv6)
-                        .put("port", resolved.port)
-                        .put("timeoutSec", resolved.timeoutSec)
-                        .put("jobs", resolved.jobs)
-                        .put("samplePerSubnet", resolved.samplePerSubnet)
-                        .put("full", resolved.full)
-                        .put("tunnelPingCount", resolved.tunnelPingCount)
-                        .put("customTarget", resolved.customTarget)
-                        .put("awgJunkCount", resolved.awgJunkCount)
-                        .put("awgJunkMin", resolved.awgJunkMin)
-                        .put("awgJunkMax", resolved.awgJunkMax)
-                        .put("awgI1", resolved.awgI1)
-                        .put("masqueSni", resolved.masqueSni)
-                        .put("masqueAttempts", resolved.masqueAttempts)
-                        .put("includeNodes", JSONArray(resolved.includeNodes))
-                        .put("includeCountries", JSONArray(resolved.includeCountries))
-                        .put("mtu", resolved.mtu)
-                        .put("dns", JSONArray(resolved.dns))
-                        .put("speedTest", resolved.speedTest)
-                        .put("throughEndpoint", resolved.throughEndpoint)
-                        .toString()
-                    viewModel.start(OperationRequest("scan", payload, preset.id, resolved.protocol))
-                },
-                enabled = !operation.running,
-                modifier = Modifier.fillMaxWidth()
-            ) { Text(stringResource(R.string.start_scan)) }
-            if (operation.operation == "scan") {
-                OperationPanel(operation, viewModel::stop, viewModel::dismissOperation)
             }
         }
     }

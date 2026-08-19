@@ -13,7 +13,7 @@
     <string name="preset_durable_description">Default scan with 10 tunnel pings.</string>
     <string name="preset_full">Full</string>
     <string name="preset_full_description">Verify all 256 addresses in every subnet.</string>
-    <string name="expert_mode">Expert mode</string>
+    <string name="expert_mode">Advanced mode</string>
     <string name="start_scan">Start scan</string>
     <string name="stop_operation">Stop</string>
     <string name="active_operation">Operation in progress</string>
@@ -154,4 +154,5 @@
     <string name="clear_data_confirm_message">The account and scan history will be deleted. You will return to account registration.</string>
     <string name="clear_data">Clear data</string>
     <string name="cancel">Cancel</string>
+    <string name="scan_dock_progress">%1$d / %2$d · %3$d working</string>
 </resources>

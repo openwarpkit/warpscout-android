@@ -108,6 +108,7 @@ class OperationService : Service() {
                         resultJson = null
                     )
                 )
+                operations.update { it.copy(historyId = activeHistoryId) }
             }
 
             val error = runCatching {

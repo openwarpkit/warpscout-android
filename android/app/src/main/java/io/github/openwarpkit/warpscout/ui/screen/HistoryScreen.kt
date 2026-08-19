@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ContentCopy
@@ -28,6 +29,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -51,6 +53,7 @@ import java.util.Date
 @Composable
 fun HistoryScreen(
     viewModel: AppViewModel,
+    highlightedId: Long? = null,
     onViewReport: (Long) -> Unit,
     onViewConfig: (Long, String) -> Unit
 ) {
@@ -58,6 +61,12 @@ fun HistoryScreen(
     val operation by viewModel.operation.collectAsStateWithLifecycle()
     var expandedId by rememberSaveable { mutableStateOf<Long?>(null) }
     var endpointDetailsId by rememberSaveable { mutableStateOf<Long?>(null) }
+    val listState = rememberLazyListState()
+
+    LaunchedEffect(highlightedId, history) {
+        val index = history.indexOfFirst { it.id == highlightedId }
+        if (index >= 0) listState.animateScrollToItem(index)
+    }
 
     Scaffold(topBar = { TopAppBar(title = { Text(stringResource(R.string.history_title)) }) }) { padding ->
         if (history.isEmpty()) {
@@ -76,27 +85,36 @@ fun HistoryScreen(
             }
         } else {
             LazyColumn(
+                state = listState,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 20.dp, vertical = 8.dp)
             ) {
                 items(history, key = HistoryEntity::id) { item ->
-                    HistoryRow(
-                        item = item,
-                        expanded = expandedId == item.id,
-                        endpointExpanded = endpointDetailsId == item.id,
-                        actionsEnabled = !operation.running,
-                        onToggle = {
-                            expandedId = if (expandedId == item.id) null else item.id
-                            if (expandedId != item.id) endpointDetailsId = null
-                        },
-                        onViewReport = { onViewReport(item.id) },
-                        onEndpoint = {
-                            endpointDetailsId = if (endpointDetailsId == item.id) null else item.id
-                        },
-                        onConfig = { onViewConfig(item.id, it) }
-                    )
+                    Surface(
+                        color = if (item.id == highlightedId) {
+                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+                        } else {
+                            MaterialTheme.colorScheme.background
+                        }
+                    ) {
+                        HistoryRow(
+                            item = item,
+                            expanded = expandedId == item.id,
+                            endpointExpanded = endpointDetailsId == item.id,
+                            actionsEnabled = !operation.running,
+                            onToggle = {
+                                expandedId = if (expandedId == item.id) null else item.id
+                                if (expandedId != item.id) endpointDetailsId = null
+                            },
+                            onViewReport = { onViewReport(item.id) },
+                            onEndpoint = {
+                                endpointDetailsId = if (endpointDetailsId == item.id) null else item.id
+                            },
+                            onConfig = { onViewConfig(item.id, it) }
+                        )
+                    }
                     HorizontalDivider()
                 }
             }

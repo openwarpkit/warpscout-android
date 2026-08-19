@@ -14,7 +14,8 @@ data class OperationState(
     val startedAt: Long = 0,
     val errorCode: String? = null,
     val errorMessage: String? = null,
-    val latestResultJson: String? = null
+    val latestResultJson: String? = null,
+    val historyId: Long? = null
 ) {
     val progress: Float
         get() = if (total > 0) completed.toFloat() / total else 0f

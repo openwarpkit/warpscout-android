@@ -13,7 +13,7 @@
     <string name="preset_durable_description">Стандартный скан с 10 проверками туннеля.</string>
     <string name="preset_full">Полный</string>
     <string name="preset_full_description">Проверка всех 256 адресов каждой подсети.</string>
-    <string name="expert_mode">Экспертный режим</string>
+    <string name="expert_mode">Продвинутый режим</string>
     <string name="start_scan">Начать сканирование</string>
     <string name="stop_operation">Остановить</string>
     <string name="active_operation">Выполняется операция</string>
@@ -154,4 +154,5 @@
     <string name="clear_data_confirm_message">Аккаунт и история сканирований будут удалены. Приложение вернется к регистрации аккаунта.</string>
     <string name="clear_data">Очистить данные</string>
     <string name="cancel">Отмена</string>
+    <string name="scan_dock_progress">%1$d / %2$d · рабочих %3$d</string>
 </resources>

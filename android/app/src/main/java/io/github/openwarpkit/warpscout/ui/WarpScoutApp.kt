@@ -25,6 +25,9 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -38,6 +41,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import io.github.openwarpkit.warpscout.R
+import io.github.openwarpkit.warpscout.ui.components.ScanOperationDock
 import io.github.openwarpkit.warpscout.ui.screen.AboutScreen
 import io.github.openwarpkit.warpscout.ui.screen.ConfigScreen
 import io.github.openwarpkit.warpscout.ui.screen.HistoryScreen
@@ -87,6 +91,16 @@ private fun MainNavigation(viewModel: AppViewModel) {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
+    val operation by viewModel.operation.collectAsStateWithLifecycle()
+    var highlightedHistoryId by rememberSaveable { mutableStateOf<Long?>(null) }
+    val showScanDock = operation.operation == "scan"
+    val openLatestHistory = {
+        operation.historyId?.let {
+            highlightedHistoryId = it
+            navController.navigatePrimary("history")
+        }
+        Unit
+    }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val expanded = maxWidth >= 720.dp
         if (expanded) {
@@ -105,8 +119,18 @@ private fun MainNavigation(viewModel: AppViewModel) {
                         )
                     }
                 }
-                Box(Modifier.weight(1f)) {
-                    AppNavHost(viewModel, navController)
+                Column(Modifier.weight(1f)) {
+                    Box(Modifier.weight(1f)) {
+                        AppNavHost(viewModel, navController, highlightedHistoryId)
+                    }
+                    if (showScanDock) {
+                        ScanOperationDock(
+                            state = operation,
+                            onStop = viewModel::stop,
+                            onDismiss = viewModel::dismissOperation,
+                            onOpenHistory = openLatestHistory
+                        )
+                    }
                 }
             }
         } else {
@@ -116,19 +140,29 @@ private fun MainNavigation(viewModel: AppViewModel) {
                 contentColor = MaterialTheme.colorScheme.onBackground,
                 contentWindowInsets = WindowInsets(0, 0, 0, 0),
                 bottomBar = {
-                    if (destinations.any { it.route == currentDestination?.route }) {
-                        NavigationBar(
-                            containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                            tonalElevation = 0.dp
-                        ) {
-                            destinations.forEach { destination ->
-                                val selected = currentDestination?.hierarchy?.any { it.route == destination.route } == true
-                                NavigationBarItem(
-                                    selected = selected,
-                                    onClick = { navController.navigatePrimary(destination.route) },
-                                    icon = { Icon(destination.icon, contentDescription = null) },
-                                    label = { androidx.compose.material3.Text(stringResource(destination.label)) }
-                                )
+                    Column {
+                        if (showScanDock) {
+                            ScanOperationDock(
+                                state = operation,
+                                onStop = viewModel::stop,
+                                onDismiss = viewModel::dismissOperation,
+                                onOpenHistory = openLatestHistory
+                            )
+                        }
+                        if (destinations.any { it.route == currentDestination?.route }) {
+                            NavigationBar(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                                tonalElevation = 0.dp
+                            ) {
+                                destinations.forEach { destination ->
+                                    val selected = currentDestination?.hierarchy?.any { it.route == destination.route } == true
+                                    NavigationBarItem(
+                                        selected = selected,
+                                        onClick = { navController.navigatePrimary(destination.route) },
+                                        icon = { Icon(destination.icon, contentDescription = null) },
+                                        label = { androidx.compose.material3.Text(stringResource(destination.label)) }
+                                    )
+                                }
                             }
                         }
                     }
@@ -140,7 +174,7 @@ private fun MainNavigation(viewModel: AppViewModel) {
                         .padding(padding)
                         .consumeWindowInsets(padding)
                 ) {
-                    AppNavHost(viewModel, navController)
+                    AppNavHost(viewModel, navController, highlightedHistoryId)
                 }
             }
         }
@@ -150,13 +184,15 @@ private fun MainNavigation(viewModel: AppViewModel) {
 @Composable
 private fun AppNavHost(
     viewModel: AppViewModel,
-    navController: androidx.navigation.NavHostController
+    navController: androidx.navigation.NavHostController,
+    highlightedHistoryId: Long?
 ) {
     NavHost(navController = navController, startDestination = "scan") {
         composable("scan") { ScanScreen(viewModel) }
         composable("history") {
             HistoryScreen(
                 viewModel = viewModel,
+                highlightedId = highlightedHistoryId,
                 onViewReport = { historyId -> navController.navigate("report/$historyId") },
                 onViewConfig = { historyId, format -> navController.navigate("config/$historyId/$format") }
             )
