@@ -40,6 +40,7 @@ type errorEvent struct {
 	Code      string `json:"code"`
 	Message   string `json:"message"`
 	Retryable bool   `json:"retryable"`
+	Payload   any    `json:"payload,omitempty"`
 }
 
 type reportRequest struct {
@@ -166,7 +167,16 @@ func invalidPayload(listener Listener, err error) error {
 
 func emitCoreError(listener Listener, err error) {
 	if typed, ok := err.(*core.CoreError); ok {
-		emitError(listener, typed.Code, typed.Message, typed.Retryable)
+		emit(listener, responseEvent{
+			SchemaVersion: 1,
+			Type:          "error",
+			Error: &errorEvent{
+				Code:      typed.Code,
+				Message:   typed.Message,
+				Retryable: typed.Retryable,
+				Payload:   typed.Payload,
+			},
+		})
 		return
 	}
 	emitError(listener, "operation_failed", err.Error(), false)

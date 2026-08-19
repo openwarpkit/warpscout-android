@@ -154,31 +154,48 @@ func (b *MobileBackend) FindJunk(ctx context.Context, input core.Account, scan c
 	progress := newMobileEmitter(core.OperationFindJunk, sink)
 	timeout := time.Duration(opts.timeoutSec) * time.Second
 	var best junkCandidate
+	var tested []core.JunkAttempt
 	for attempt := 1; ; attempt++ {
 		if ctx.Err() != nil {
 			if best.total > 0 {
-				return junkProfile(best), nil
+				return junkProfile(best, tested), nil
 			}
-			return core.JunkProfile{}, operationFailure(ctx, "canceled", ctx.Err(), false)
+			failure := operationFailure(ctx, "canceled", ctx.Err(), false)
+			if typed, ok := failure.(*core.CoreError); ok {
+				typed.Payload = core.JunkProfile{Tested: tested}
+			}
+			return core.JunkProfile{}, failure
 		}
 		genJunkParams()
 		if scan.AWGI1 != "" {
 			awgI1 = scan.AWGI1
 		}
+		current := core.JunkAttempt{
+			JunkCount: awgJc,
+			JunkMin:   awgJmin,
+			JunkMax:   awgJmax,
+			I1:        awgI1,
+		}
 		emitProgress(sink, core.OperationFindJunk, "junk", attempt-1, 0, fmt.Sprintf("Attempt %d", attempt))
 		ph, scanErr := runScan(ctx, opts, run, expandPools(opts.perSubnet), timeout, progress.Emit)
 		if ctx.Err() != nil {
+			tested = append(tested, current)
 			continue
 		}
 		if scanErr != nil {
+			tested = append(tested, current)
 			continue
 		}
 		candidate := scoreJunk(ph)
+		current.Working = candidate.working
+		current.Total = candidate.total
+		current.Completed = true
+		tested = append(tested, current)
 		if candidate.working > best.working {
 			best = candidate
 		}
 		if candidate.meets(opts.threshold) {
-			return junkProfile(candidate), nil
+			return junkProfile(candidate, tested), nil
 		}
 	}
 }
@@ -219,6 +236,7 @@ func (b *MobileBackend) FindSNI(ctx context.Context, input core.Account, scan co
 	timeout := time.Duration(opts.timeoutSec) * time.Second
 	var best sniCandidate
 	attempts := 0
+	var tested []core.SNIAttempt
 	for i, sni := range sniCandidates {
 		if ctx.Err() != nil {
 			break
@@ -228,23 +246,35 @@ func (b *MobileBackend) FindSNI(ctx context.Context, input core.Account, scan co
 		emitProgress(sink, core.OperationFindSNI, "sni", i, len(sniCandidates), sni)
 		ph, scanErr := runScan(ctx, opts, run, ips, timeout, progress.Emit)
 		if ctx.Err() != nil {
+			tested = append(tested, core.SNIAttempt{SNI: sni})
 			break
 		}
 		if scanErr != nil {
+			tested = append(tested, core.SNIAttempt{SNI: sni})
 			continue
 		}
 		candidate := scoreSNI(sni, ph)
+		tested = append(tested, core.SNIAttempt{
+			SNI:       sni,
+			Working:   candidate.working,
+			Total:     candidate.total,
+			Completed: true,
+		})
 		if candidate.working > best.working {
 			best = candidate
 		}
 		if candidate.meets(opts.threshold) {
-			return core.SNIProfile{SNI: candidate.sni, Protocol: scan.Protocol, Attempts: attempts}, nil
+			return sniProfile(candidate, scan.Protocol, attempts, tested), nil
 		}
 	}
 	if best.total > 0 {
-		return core.SNIProfile{SNI: best.sni, Protocol: scan.Protocol, Attempts: attempts}, nil
+		return sniProfile(best, scan.Protocol, attempts, tested), nil
 	}
-	return core.SNIProfile{}, operationFailure(ctx, "sni_not_found", errors.New("no SNI completed a scan"), true)
+	failure := operationFailure(ctx, "sni_not_found", errors.New("no SNI completed a scan"), true)
+	if typed, ok := failure.(*core.CoreError); ok {
+		typed.Payload = core.SNIProfile{Protocol: scan.Protocol, Attempts: attempts, Tested: tested}
+	}
+	return core.SNIProfile{}, failure
 }
 
 func (b *MobileBackend) StartSocks(ctx context.Context, input core.Account, socks core.SocksOptions, sink core.EventSink) error {
@@ -570,8 +600,36 @@ func durationMilliseconds(value time.Duration) float64 {
 	return float64(value) / float64(time.Millisecond)
 }
 
-func junkProfile(candidate junkCandidate) core.JunkProfile {
-	return core.JunkProfile{JunkCount: candidate.jc, JunkMin: candidate.jmin, JunkMax: candidate.jmax, I1: candidate.i1}
+func junkProfile(candidate junkCandidate, tested []core.JunkAttempt) core.JunkProfile {
+	for index := range tested {
+		attempt := &tested[index]
+		attempt.Selected = attempt.Completed &&
+			attempt.JunkCount == candidate.jc &&
+			attempt.JunkMin == candidate.jmin &&
+			attempt.JunkMax == candidate.jmax &&
+			attempt.I1 == candidate.i1 &&
+			attempt.Working == candidate.working &&
+			attempt.Total == candidate.total
+	}
+	return core.JunkProfile{
+		JunkCount: candidate.jc,
+		JunkMin:   candidate.jmin,
+		JunkMax:   candidate.jmax,
+		I1:        candidate.i1,
+		Tested:    tested,
+	}
+}
+
+func sniProfile(candidate sniCandidate, protocol core.Protocol, attempts int, tested []core.SNIAttempt) core.SNIProfile {
+	for index := range tested {
+		tested[index].Selected = tested[index].Completed && tested[index].SNI == candidate.sni
+	}
+	return core.SNIProfile{
+		SNI:      candidate.sni,
+		Protocol: protocol,
+		Attempts: attempts,
+		Tested:   tested,
+	}
 }
 
 func normalizedCodes(values []string) []string {

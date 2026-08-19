@@ -106,6 +106,7 @@ type CoreError struct {
 	Code      string `json:"code"`
 	Message   string `json:"message"`
 	Retryable bool   `json:"retryable"`
+	Payload   any    `json:"payload,omitempty"`
 }
 
 func (e *CoreError) Error() string {
@@ -113,16 +114,37 @@ func (e *CoreError) Error() string {
 }
 
 type JunkProfile struct {
+	JunkCount int           `json:"junkCount"`
+	JunkMin   int           `json:"junkMin"`
+	JunkMax   int           `json:"junkMax"`
+	I1        string        `json:"i1,omitempty"`
+	Tested    []JunkAttempt `json:"tested,omitempty"`
+}
+
+type JunkAttempt struct {
 	JunkCount int    `json:"junkCount"`
 	JunkMin   int    `json:"junkMin"`
 	JunkMax   int    `json:"junkMax"`
 	I1        string `json:"i1,omitempty"`
+	Working   int    `json:"working"`
+	Total     int    `json:"total"`
+	Completed bool   `json:"completed"`
+	Selected  bool   `json:"selected"`
 }
 
 type SNIProfile struct {
-	SNI      string   `json:"sni"`
-	Protocol Protocol `json:"protocol"`
-	Attempts int      `json:"attempts"`
+	SNI      string       `json:"sni"`
+	Protocol Protocol     `json:"protocol"`
+	Attempts int          `json:"attempts"`
+	Tested   []SNIAttempt `json:"tested,omitempty"`
+}
+
+type SNIAttempt struct {
+	SNI       string `json:"sni"`
+	Working   int    `json:"working"`
+	Total     int    `json:"total"`
+	Completed bool   `json:"completed"`
+	Selected  bool   `json:"selected"`
 }
 
 type SocksOptions struct {
