@@ -38,7 +38,7 @@ import io.github.openwarpkit.warpscout.R
 import io.github.openwarpkit.warpscout.core.OperationState
 
 private val ScanDockControlSize = 72.dp
-private val ScanDockIconSize = 40.dp
+private val ScanDockIconSize = 24.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
