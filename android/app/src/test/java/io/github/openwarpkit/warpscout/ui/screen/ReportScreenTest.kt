@@ -53,4 +53,56 @@ class ReportScreenTest {
         )
         assertEquals(ReportColumn.entries, visibleReportColumns(listOf(result), hideEmptyColumns = false))
     }
+
+    @Test
+    fun selectsExpectedInitialSortDirection() {
+        assertEquals(
+            ReportSort(ReportColumn.Endpoint, ReportSortDirection.Ascending),
+            nextReportSort(null, ReportColumn.Endpoint)
+        )
+        assertEquals(
+            ReportSort(ReportColumn.EndpointPing, ReportSortDirection.Descending),
+            nextReportSort(null, ReportColumn.EndpointPing)
+        )
+        assertEquals(
+            ReportSort(ReportColumn.EndpointPing, ReportSortDirection.Ascending),
+            nextReportSort(
+                ReportSort(ReportColumn.EndpointPing, ReportSortDirection.Descending),
+                ReportColumn.EndpointPing
+            )
+        )
+    }
+
+    @Test
+    fun keepsMissingMeasurementsAfterSortedValues() {
+        fun endpoint(address: String, ping: Double) = ReportEndpoint(
+            endpoint = address,
+            region = "",
+            node = "",
+            country = "",
+            nodeLocation = "",
+            endpointPingMs = ping,
+            tunnelPingMs = 0.0,
+            lossPercent = 0.0,
+            speedMbps = 0.0,
+            working = true,
+            durable = true
+        )
+        val results = listOf(endpoint("missing", 0.0), endpoint("slow", 50.0), endpoint("fast", 10.0))
+
+        assertEquals(
+            listOf("slow", "fast", "missing"),
+            sortReportResults(
+                results,
+                ReportSort(ReportColumn.EndpointPing, ReportSortDirection.Descending)
+            ).map(ReportEndpoint::endpoint)
+        )
+        assertEquals(
+            listOf("fast", "slow", "missing"),
+            sortReportResults(
+                results,
+                ReportSort(ReportColumn.EndpointPing, ReportSortDirection.Ascending)
+            ).map(ReportEndpoint::endpoint)
+        )
+    }
 }

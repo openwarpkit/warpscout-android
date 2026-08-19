@@ -3,6 +3,7 @@ package io.github.openwarpkit.warpscout.ui.screen
 import android.content.ClipData
 import android.content.ClipboardManager
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,7 +13,9 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -21,6 +24,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.ArrowDownward
+import androidx.compose.material.icons.outlined.ArrowUpward
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material3.Button
@@ -87,6 +92,16 @@ internal enum class ReportColumn(val label: Int, val width: Dp) {
     NodeLocation(R.string.node_location, 128.dp),
     Speed(R.string.speed, 84.dp)
 }
+
+internal enum class ReportSortDirection {
+    Ascending,
+    Descending
+}
+
+internal data class ReportSort(
+    val column: ReportColumn,
+    val direction: ReportSortDirection
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -174,9 +189,17 @@ private fun ReportContent(
     val tableScroll = rememberScrollState()
     var tableExpanded by rememberSaveable(item.id) { mutableStateOf(false) }
     var hideEmptyColumns by rememberSaveable(item.id) { mutableStateOf(true) }
+    var sortColumn by rememberSaveable(item.id) { mutableStateOf<String?>(null) }
+    var sortDirection by rememberSaveable(item.id) { mutableStateOf<String?>(null) }
+    val sort = remember(sortColumn, sortDirection) {
+        val column = sortColumn?.let { runCatching { ReportColumn.valueOf(it) }.getOrNull() }
+        val direction = sortDirection?.let { runCatching { ReportSortDirection.valueOf(it) }.getOrNull() }
+        if (column != null && direction != null) ReportSort(column, direction) else null
+    }
     val visibleColumns = remember(results, hideEmptyColumns) {
         visibleReportColumns(results, hideEmptyColumns)
     }
+    val displayedResults = remember(results, sort) { sortReportResults(results, sort) }
 
     LazyColumn(
         modifier = modifier,
@@ -234,10 +257,18 @@ private fun ReportContent(
                         .fillMaxWidth()
                         .horizontalScroll(tableScroll)
                 ) {
-                    ReportHeader(visibleColumns)
+                    ReportHeader(
+                        columns = visibleColumns,
+                        sort = sort,
+                        onSort = { column ->
+                            val next = nextReportSort(sort, column)
+                            sortColumn = next.column.name
+                            sortDirection = next.direction.name
+                        }
+                    )
                 }
             }
-            items(results, key = { "report-${it.endpoint}" }) { endpoint ->
+            items(displayedResults, key = { "report-${it.endpoint}" }) { endpoint ->
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -389,14 +420,23 @@ private fun ConfigButton(label: Int, format: String, enabled: Boolean, onConfig:
 }
 
 @Composable
-private fun ReportHeader(columns: List<ReportColumn>) {
+private fun ReportHeader(
+    columns: List<ReportColumn>,
+    sort: ReportSort?,
+    onSort: (ReportColumn) -> Unit
+) {
     Row(
         modifier = Modifier
             .width(columns.tableWidth())
             .background(MaterialTheme.colorScheme.surfaceVariant)
-            .padding(vertical = 7.dp)
     ) {
-        columns.forEach { HeaderCell(it.label, it.width) }
+        columns.forEach { column ->
+            HeaderCell(
+                column = column,
+                selectedDirection = sort?.takeIf { it.column == column }?.direction,
+                onClick = { onSort(column) }
+            )
+        }
     }
 }
 
@@ -485,17 +525,116 @@ internal fun visibleReportColumns(
 }
 
 @Composable
-private fun HeaderCell(label: Int, width: Dp) {
-    Text(
-        text = stringResource(label),
+private fun HeaderCell(
+    column: ReportColumn,
+    selectedDirection: ReportSortDirection?,
+    onClick: () -> Unit
+) {
+    Box(
         modifier = Modifier
-            .width(width)
-            .padding(horizontal = 6.dp),
-        style = MaterialTheme.typography.labelSmall,
-        fontWeight = FontWeight.Bold,
-        maxLines = 2,
-        overflow = TextOverflow.Ellipsis
-    )
+            .width(column.width)
+            .heightIn(min = 48.dp)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 6.dp, vertical = 4.dp),
+        contentAlignment = Alignment.CenterStart
+    ) {
+        Text(
+            text = stringResource(column.label),
+            modifier = if (selectedDirection == null) Modifier else Modifier.padding(end = 12.dp),
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
+        if (selectedDirection != null) {
+            Icon(
+                imageVector = if (selectedDirection == ReportSortDirection.Ascending) {
+                    Icons.Outlined.ArrowUpward
+                } else {
+                    Icons.Outlined.ArrowDownward
+                },
+                contentDescription = stringResource(
+                    if (selectedDirection == ReportSortDirection.Ascending) {
+                        R.string.sorted_ascending
+                    } else {
+                        R.string.sorted_descending
+                    }
+                ),
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .size(12.dp)
+            )
+        }
+    }
+}
+
+internal fun nextReportSort(current: ReportSort?, column: ReportColumn): ReportSort {
+    if (current?.column == column) {
+        return current.copy(
+            direction = if (current.direction == ReportSortDirection.Ascending) {
+                ReportSortDirection.Descending
+            } else {
+                ReportSortDirection.Ascending
+            }
+        )
+    }
+    val direction = when (column) {
+        ReportColumn.EndpointPing,
+        ReportColumn.TunnelPing,
+        ReportColumn.Loss,
+        ReportColumn.Speed -> ReportSortDirection.Descending
+        else -> ReportSortDirection.Ascending
+    }
+    return ReportSort(column, direction)
+}
+
+internal fun sortReportResults(
+    results: List<ReportEndpoint>,
+    sort: ReportSort?
+): List<ReportEndpoint> {
+    if (sort == null) return results
+    return results.sortedWith { first, second ->
+        val firstMissing = !first.hasData(sort.column)
+        val secondMissing = !second.hasData(sort.column)
+        when {
+            firstMissing && !secondMissing -> 1
+            !firstMissing && secondMissing -> -1
+            firstMissing && secondMissing -> 0
+            else -> {
+                val comparison = first.compareColumn(second, sort.column)
+                if (sort.direction == ReportSortDirection.Ascending) comparison else -comparison
+            }
+        }
+    }
+}
+
+private fun ReportEndpoint.hasData(column: ReportColumn): Boolean = when (column) {
+    ReportColumn.Status, ReportColumn.Endpoint -> true
+    ReportColumn.EndpointPing -> endpointPingMs > 0
+    ReportColumn.TunnelPing, ReportColumn.Loss -> tunnelPingMs > 0
+    ReportColumn.Region -> region.isNotBlank()
+    ReportColumn.Node -> node.isNotBlank()
+    ReportColumn.NodeLocation -> country.isNotBlank() || nodeLocation.isNotBlank()
+    ReportColumn.Speed -> speedMbps > 0
+}
+
+private fun ReportEndpoint.compareColumn(other: ReportEndpoint, column: ReportColumn): Int = when (column) {
+    ReportColumn.Status -> statusKey().compareTo(other.statusKey(), ignoreCase = true)
+    ReportColumn.Endpoint -> endpoint.compareTo(other.endpoint, ignoreCase = true)
+    ReportColumn.EndpointPing -> endpointPingMs.compareTo(other.endpointPingMs)
+    ReportColumn.TunnelPing -> tunnelPingMs.compareTo(other.tunnelPingMs)
+    ReportColumn.Loss -> lossPercent.compareTo(other.lossPercent)
+    ReportColumn.Region -> region.compareTo(other.region, ignoreCase = true)
+    ReportColumn.Node -> node.compareTo(other.node, ignoreCase = true)
+    ReportColumn.NodeLocation -> nodeLocation.ifBlank { country }
+        .compareTo(other.nodeLocation.ifBlank { other.country }, ignoreCase = true)
+    ReportColumn.Speed -> speedMbps.compareTo(other.speedMbps)
+}
+
+private fun ReportEndpoint.statusKey(): String = when {
+    !working -> "failed"
+    durable -> "working"
+    else -> "torn_down"
 }
 
 @Composable
