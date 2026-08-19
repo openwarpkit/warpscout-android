@@ -5,7 +5,7 @@ $projectRoot = Split-Path -Parent $PSScriptRoot
 $outputDirectory = Join-Path $projectRoot "android\app\libs"
 $coreVersion = if ($env:WARPSCOUT_CORE_VERSION) { $env:WARPSCOUT_CORE_VERSION } else { "dev" }
 $upstreamVersion = if ($env:WARPSCOUT_UPSTREAM_TAG) { $env:WARPSCOUT_UPSTREAM_TAG } else { "v0.14.0" }
-$goMobileVersion = "v0.0.0-20240520174638-fa72addaaa1b"
+$goMobileVersion = "v0.0.0-20260818145002-f020ddb2de58"
 $localAndroidSDK = Join-Path $projectRoot ".cache\android-sdk"
 $temporarySDKDrive = $null
 

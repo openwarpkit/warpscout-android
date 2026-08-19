@@ -28,15 +28,15 @@ WARPSCOUT for Android представляет собой разрабатыва
 
 | Регистрация аккаунта | Сканирование |
 | --- | --- |
-| ![Экран регистрации аккаунта](docs/screenshots/onboarding.png) | ![Стандартное сканирование](docs/screenshots/scan.png) |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/dark/onboarding.png"><source media="(prefers-color-scheme: light)" srcset="docs/screenshots/light/onboarding.png"><img src="docs/screenshots/light/onboarding.png" alt="Экран регистрации аккаунта"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/dark/scan.png"><source media="(prefers-color-scheme: light)" srcset="docs/screenshots/light/scan.png"><img src="docs/screenshots/light/scan.png" alt="Стандартное сканирование"></picture> |
 | История | Инструменты |
-| ![История сканирований](docs/screenshots/history.png) | ![Инструменты поиска и SOCKS](docs/screenshots/tools.png) |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/dark/history.png"><source media="(prefers-color-scheme: light)" srcset="docs/screenshots/light/history.png"><img src="docs/screenshots/light/history.png" alt="История сканирований"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/dark/tools.png"><source media="(prefers-color-scheme: light)" srcset="docs/screenshots/light/tools.png"><img src="docs/screenshots/light/tools.png" alt="Инструменты поиска и SOCKS"></picture> |
 | Настройки | Экспертный режим |
-| ![Настройки приложения](docs/screenshots/settings.png) | ![Параметры экспертного режима](docs/screenshots/expert.png) |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/dark/settings.png"><source media="(prefers-color-scheme: light)" srcset="docs/screenshots/light/settings.png"><img src="docs/screenshots/light/settings.png" alt="Настройки приложения"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/dark/expert.png"><source media="(prefers-color-scheme: light)" srcset="docs/screenshots/light/expert.png"><img src="docs/screenshots/light/expert.png" alt="Параметры экспертного режима"></picture> |
 | Процесс сканирования | Таблица: адреса и пинг |
-| ![Прогресс активного сканирования](docs/screenshots/progress.png) | ![Адреса и пинг в отчёте AWG](docs/screenshots/results.png) |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/dark/progress.png"><source media="(prefers-color-scheme: light)" srcset="docs/screenshots/light/progress.png"><img src="docs/screenshots/light/progress.png" alt="Прогресс активного сканирования"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/dark/results.png"><source media="(prefers-color-scheme: light)" srcset="docs/screenshots/light/results.png"><img src="docs/screenshots/light/results.png" alt="Адреса и пинг в отчёте AWG"></picture> |
 | Таблица: регионы и узлы | Лучший адрес |
-| ![Регионы, узлы и расположения в отчёте AWG](docs/screenshots/results-nodes.png) | ![Данные лучшего адреса](docs/screenshots/best-endpoint.png) |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/dark/results-nodes.png"><source media="(prefers-color-scheme: light)" srcset="docs/screenshots/light/results-nodes.png"><img src="docs/screenshots/light/results-nodes.png" alt="Регионы, узлы и расположения в отчёте AWG"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/dark/best-endpoint.png"><source media="(prefers-color-scheme: light)" srcset="docs/screenshots/light/best-endpoint.png"><img src="docs/screenshots/light/best-endpoint.png" alt="Данные лучшего адреса"></picture> |
 
 ## Установка
 

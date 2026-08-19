@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 OUT="$ROOT/android/app/libs"
-GOMOBILE_VERSION="v0.0.0-20240520174638-fa72addaaa1b"
+GOMOBILE_VERSION="v0.0.0-20260818145002-f020ddb2de58"
 
 mkdir -p "$OUT"
 go install "golang.org/x/mobile/cmd/gomobile@$GOMOBILE_VERSION"

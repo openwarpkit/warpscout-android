@@ -28,15 +28,15 @@ The first Android release targets:
 
 | Onboarding | Scan |
 | --- | --- |
-| ![Account registration screen](docs/screenshots/onboarding.png) | ![Standard scan screen](docs/screenshots/scan.png) |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/dark/onboarding.png"><source media="(prefers-color-scheme: light)" srcset="docs/screenshots/light/onboarding.png"><img src="docs/screenshots/light/onboarding.png" alt="Account registration screen"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/dark/scan.png"><source media="(prefers-color-scheme: light)" srcset="docs/screenshots/light/scan.png"><img src="docs/screenshots/light/scan.png" alt="Standard scan screen"></picture> |
 | History | Tools |
-| ![Scan history](docs/screenshots/history.png) | ![Discovery and SOCKS tools](docs/screenshots/tools.png) |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/dark/history.png"><source media="(prefers-color-scheme: light)" srcset="docs/screenshots/light/history.png"><img src="docs/screenshots/light/history.png" alt="Scan history"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/dark/tools.png"><source media="(prefers-color-scheme: light)" srcset="docs/screenshots/light/tools.png"><img src="docs/screenshots/light/tools.png" alt="Discovery and SOCKS tools"></picture> |
 | Settings | Expert mode |
-| ![Application settings](docs/screenshots/settings.png) | ![Expert scan options](docs/screenshots/expert.png) |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/dark/settings.png"><source media="(prefers-color-scheme: light)" srcset="docs/screenshots/light/settings.png"><img src="docs/screenshots/light/settings.png" alt="Application settings"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/dark/expert.png"><source media="(prefers-color-scheme: light)" srcset="docs/screenshots/light/expert.png"><img src="docs/screenshots/light/expert.png" alt="Expert scan options"></picture> |
 | Scan in progress | Report table: endpoints and ping |
-| ![Active endpoint scan progress](docs/screenshots/progress.png) | ![AWG report endpoints and ping](docs/screenshots/results.png) |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/dark/progress.png"><source media="(prefers-color-scheme: light)" srcset="docs/screenshots/light/progress.png"><img src="docs/screenshots/light/progress.png" alt="Active endpoint scan progress"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/dark/results.png"><source media="(prefers-color-scheme: light)" srcset="docs/screenshots/light/results.png"><img src="docs/screenshots/light/results.png" alt="AWG report endpoints and ping"></picture> |
 | Report table: regions and nodes | Best endpoint |
-| ![AWG report regions, nodes, and locations](docs/screenshots/results-nodes.png) | ![Best endpoint details](docs/screenshots/best-endpoint.png) |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/dark/results-nodes.png"><source media="(prefers-color-scheme: light)" srcset="docs/screenshots/light/results-nodes.png"><img src="docs/screenshots/light/results-nodes.png" alt="AWG report regions, nodes, and locations"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/dark/best-endpoint.png"><source media="(prefers-color-scheme: light)" srcset="docs/screenshots/light/best-endpoint.png"><img src="docs/screenshots/light/best-endpoint.png" alt="Best endpoint details"></picture> |
 
 ## Installation
 

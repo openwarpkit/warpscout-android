@@ -9,8 +9,31 @@ const attribution = [
   "Original author: Nikita S. (@vernette)",
   "This repository is not an official Android release maintained by the upstream author.",
 ];
-const screenshots = ["scan.png", "progress.png", "results.png", "tools.png"];
+const screenshots = [
+  "onboarding.png",
+  "scan.png",
+  "history.png",
+  "tools.png",
+  "settings.png",
+  "expert.png",
+  "progress.png",
+  "results.png",
+  "results-nodes.png",
+  "best-endpoint.png",
+];
+const screenshotThemes = ["light", "dark"];
 const failures = [];
+
+function pngSize(path) {
+  const png = readFileSync(path);
+  if (png.length < 24 || png.toString("ascii", 1, 4) !== "PNG") {
+    return null;
+  }
+  return {
+    width: png.readUInt32BE(16),
+    height: png.readUInt32BE(20),
+  };
+}
 
 for (const file of files) {
   const content = readFileSync(file, "utf8");
@@ -32,9 +55,17 @@ for (const file of files) {
   }
 }
 if (process.env.REQUIRE_SCREENSHOTS === "1") {
-  for (const screenshot of screenshots) {
-    if (!existsSync(`docs/screenshots/${screenshot}`)) {
-      failures.push(`missing release screenshot: docs/screenshots/${screenshot}`);
+  for (const theme of screenshotThemes) {
+    for (const screenshot of screenshots) {
+      const path = `docs/screenshots/${theme}/${screenshot}`;
+      if (!existsSync(path)) {
+        failures.push(`missing release screenshot: ${path}`);
+        continue;
+      }
+      const size = pngSize(path);
+      if (size?.width !== 1080 || size?.height !== 2404) {
+        failures.push(`${path}: expected 1080x2404, got ${size ? `${size.width}x${size.height}` : "invalid PNG"}`);
+      }
     }
   }
 }
