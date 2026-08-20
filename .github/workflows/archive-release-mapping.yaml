@@ -1,0 +1,39 @@
+name: archive-release-mapping
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Android release tag containing R8-mapping.txt
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download release mapping
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          [[ "$RELEASE_TAG" =~ ^android-v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          mkdir -p symbols
+          gh release download "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --pattern R8-mapping.txt \
+            --dir symbols
+          test -s symbols/R8-mapping.txt
+          echo "MAPPING_VERSION=${RELEASE_TAG#android-v}" >> "$GITHUB_ENV"
+          sha256sum symbols/R8-mapping.txt
+      - name: Upload R8 mapping
+        uses: actions/upload-artifact@v4
+        with:
+          name: r8-mapping-${{ env.MAPPING_VERSION }}
+          path: symbols/R8-mapping.txt
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 9
