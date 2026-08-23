@@ -82,6 +82,7 @@
     <string name="android_version">Android-приложение</string>
     <string name="core_version">Go-ядро</string>
     <string name="upstream_version">База upstream</string>
+    <string name="upstream_commit_copied">Полный хеш upstream скопирован</string>
     <string name="credits">Авторы и зависимости</string>
     <string name="credit_project">Проект</string>
     <string name="credit_description">Описание</string>

@@ -1,5 +1,7 @@
 package io.github.openwarpkit.warpscout.ui.screen
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -25,10 +27,14 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -36,11 +42,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import io.github.openwarpkit.warpscout.BuildConfig
 import io.github.openwarpkit.warpscout.R
 import io.github.openwarpkit.warpscout.ui.AppViewModel
+import kotlinx.coroutines.launch
 
 private data class CreditLink(val label: String, val url: String, val description: Int)
 
@@ -75,6 +83,11 @@ private val projectLinks = listOf(
 @Composable
 fun AboutScreen(viewModel: AppViewModel, onBack: () -> Unit) {
     val context = LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val upstreamCommit = BuildConfig.UPSTREAM_COMMIT.trim()
+    val clipboardLabel = stringResource(R.string.upstream_version)
+    val copiedMessage = stringResource(R.string.upstream_commit_copied)
     Scaffold(
         topBar = {
             TopAppBar(
@@ -88,7 +101,8 @@ fun AboutScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                     }
                 }
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
         Column(
             modifier = Modifier
@@ -109,7 +123,16 @@ fun AboutScreen(viewModel: AppViewModel, onBack: () -> Unit) {
             VersionRow(stringResource(R.string.core_version), viewModel.coreBridge.coreVersion())
             VersionRow(
                 stringResource(R.string.upstream_version),
-                "${BuildConfig.UPSTREAM_TAG} (${BuildConfig.UPSTREAM_COMMIT})"
+                upstreamBaseDisplay(BuildConfig.UPSTREAM_TAG, upstreamCommit),
+                onClick = upstreamCommit.takeIf(String::isNotEmpty)?.let { fullCommit ->
+                    {
+                        copyToClipboard(context, clipboardLabel, fullCommit)
+                        scope.launch {
+                            snackbarHostState.currentSnackbarData?.dismiss()
+                            snackbarHostState.showSnackbar(copiedMessage)
+                        }
+                    }
+                }
             )
             HorizontalDivider()
             Text(stringResource(R.string.credits), style = MaterialTheme.typography.titleLarge)
@@ -226,11 +249,49 @@ private fun LinkButton(link: ProjectLink, modifier: Modifier, onClick: () -> Uni
 }
 
 @Composable
-private fun VersionRow(label: String, value: String) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(label, style = MaterialTheme.typography.bodyMedium)
-        Text(value, style = MaterialTheme.typography.bodyMedium, fontFamily = FontFamily.Monospace)
+private fun VersionRow(label: String, value: String, onClick: (() -> Unit)? = null) {
+    val rowModifier = if (onClick == null) {
+        Modifier.fillMaxWidth()
+    } else {
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .clickable(onClick = onClick)
     }
+    Row(
+        modifier = rowModifier,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            modifier = Modifier.weight(0.42f),
+            style = MaterialTheme.typography.bodyMedium
+        )
+        Text(
+            text = value,
+            modifier = Modifier.weight(0.58f),
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (onClick == null) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.primary,
+            fontFamily = FontFamily.Monospace,
+            textAlign = TextAlign.End
+        )
+    }
+}
+
+internal fun upstreamBaseDisplay(tag: String, commit: String): String {
+    val normalizedTag = tag.trim()
+    val shortCommit = commit.trim().take(7)
+    return when {
+        normalizedTag.isEmpty() -> shortCommit
+        shortCommit.isEmpty() -> normalizedTag
+        else -> "$normalizedTag ($shortCommit)"
+    }
+}
+
+private fun copyToClipboard(context: Context, label: String, text: String) {
+    context.getSystemService(ClipboardManager::class.java)
+        .setPrimaryClip(ClipData.newPlainText(label, text))
 }
 
 private fun openUrl(context: Context, url: String) {

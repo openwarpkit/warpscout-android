@@ -82,6 +82,7 @@
     <string name="android_version">Android app</string>
     <string name="core_version">Go core</string>
     <string name="upstream_version">Upstream base</string>
+    <string name="upstream_commit_copied">Full upstream commit hash copied</string>
     <string name="credits">Credits</string>
     <string name="credit_project">Project</string>
     <string name="credit_description">Description</string>
