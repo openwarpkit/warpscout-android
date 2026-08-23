@@ -6,6 +6,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <application
         android:name=".WarpScoutApplication"
@@ -46,6 +47,19 @@
                 android:name="autoStoreLocales"
                 android:value="true" />
         </service>
+
+        <receiver
+            android:name=".service.UpdateNotificationReceiver"
+            android:exported="false" />
+
+        <receiver
+            android:name=".service.UpdateDownloadCompleteReceiver"
+            android:exported="true"
+            android:permission="android.permission.SEND_DOWNLOAD_COMPLETED_INTENTS">
+            <intent-filter>
+                <action android:name="android.intent.action.DOWNLOAD_COMPLETE" />
+            </intent-filter>
+        </receiver>
 
         <provider
             android:name="androidx.core.content.FileProvider"

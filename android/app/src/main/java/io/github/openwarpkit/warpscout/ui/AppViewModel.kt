@@ -1,11 +1,13 @@
 package io.github.openwarpkit.warpscout.ui
 
 import android.net.Uri
+import android.content.Context
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.github.openwarpkit.warpscout.core.CoreBridge
+import io.github.openwarpkit.warpscout.BuildConfig
 import io.github.openwarpkit.warpscout.core.OperationRepository
 import io.github.openwarpkit.warpscout.core.OperationRequest
 import io.github.openwarpkit.warpscout.data.AccountStore
@@ -22,7 +24,19 @@ import io.github.openwarpkit.warpscout.data.ToolSearchResult
 import io.github.openwarpkit.warpscout.data.TextDocument
 import io.github.openwarpkit.warpscout.data.toScanProfile
 import io.github.openwarpkit.warpscout.data.UpdateChecker
+import io.github.openwarpkit.warpscout.data.AvailableUpdate
+import io.github.openwarpkit.warpscout.data.StoredUpdateState
+import io.github.openwarpkit.warpscout.data.UpdateDownloadController
+import io.github.openwarpkit.warpscout.data.UpdateDownloadState
+import io.github.openwarpkit.warpscout.data.UpdateInstallLaunch
+import io.github.openwarpkit.warpscout.data.UpdateInstaller
 import io.github.openwarpkit.warpscout.data.UpdateResult
+import io.github.openwarpkit.warpscout.data.UpdateStateStore
+import io.github.openwarpkit.warpscout.data.compareVersions
+import io.github.openwarpkit.warpscout.data.shouldAutomaticallyCheck
+import io.github.openwarpkit.warpscout.data.toAvailableUpdate
+import io.github.openwarpkit.warpscout.service.UpdateNotifier
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -47,6 +61,10 @@ class AppViewModel @Inject constructor(
     private val exportManager: ExportManager,
     private val toolResultStore: ToolResultStore,
     private val updateChecker: UpdateChecker,
+    private val updateStateStore: UpdateStateStore,
+    private val updateDownloadController: UpdateDownloadController,
+    private val updateInstaller: UpdateInstaller,
+    private val updateNotifier: UpdateNotifier,
     savedStateHandle: SavedStateHandle,
     val coreBridge: CoreBridge
 ) : ViewModel() {
@@ -60,6 +78,20 @@ class AppViewModel @Inject constructor(
 
     private val mutableUpdateResult = MutableStateFlow<Result<UpdateResult>?>(null)
     val updateResult: StateFlow<Result<UpdateResult>?> = mutableUpdateResult.asStateFlow()
+
+    private val mutableUpdateChecking = MutableStateFlow(false)
+    val updateChecking: StateFlow<Boolean> = mutableUpdateChecking.asStateFlow()
+
+    private val mutableUpdatePrompt = MutableStateFlow<AvailableUpdate?>(null)
+    val updatePrompt: StateFlow<AvailableUpdate?> = mutableUpdatePrompt.asStateFlow()
+
+    val storedUpdate = updateStateStore.state.stateIn(
+        viewModelScope,
+        SharingStarted.Eagerly,
+        StoredUpdateState()
+    )
+    val updateDownloadState = updateDownloadController.state
+    private var updateMonitorJob: Job? = null
 
     private val mutableExportError = MutableStateFlow<String?>(null)
     val exportError: StateFlow<String?> = mutableExportError.asStateFlow()
@@ -95,6 +127,7 @@ class AppViewModel @Inject constructor(
                 if (!state.running && state.operation == "register") refreshAccount()
             }
         }
+        viewModelScope.launch { initializeUpdates() }
     }
 
     fun importAccount(value: String) {
@@ -147,8 +180,51 @@ class AppViewModel @Inject constructor(
     fun checkUpdates() {
         mutableUpdateResult.value = null
         viewModelScope.launch {
-            mutableUpdateResult.value = runCatching { updateChecker.check() }
+            mutableUpdateChecking.value = true
+            val result = runCatching { updateChecker.check() }
+            mutableUpdateResult.value = result
+            result.getOrNull()?.let { checked ->
+                val available = checked.toAvailableUpdate()
+                if (available != null) {
+                    updateStateStore.saveAvailableUpdate(available)
+                }
+            }
+            mutableUpdateChecking.value = false
         }
+    }
+
+    fun dismissUpdatePrompt() {
+        mutableUpdatePrompt.value = null
+        updateNotifier.cancelAll()
+        viewModelScope.launch { updateStateStore.dismissAutomatically(System.currentTimeMillis()) }
+    }
+
+    fun startUpdate() {
+        if (operation.value.running || updateDownloadState.value !is UpdateDownloadState.Idle) return
+        viewModelScope.launch {
+            val update = updateStateStore.snapshot().availableUpdate ?: return@launch
+            mutableUpdatePrompt.value = null
+            updateNotifier.cancelAvailable()
+            if (updateDownloadController.start(update)) startUpdateMonitor()
+        }
+    }
+
+    fun cancelUpdate() {
+        updateMonitorJob?.cancel()
+        viewModelScope.launch { updateDownloadController.cancel() }
+    }
+
+    fun retryUpdate() {
+        viewModelScope.launch {
+            val update = updateStateStore.snapshot().availableUpdate ?: return@launch
+            if (updateDownloadController.start(update)) startUpdateMonitor()
+        }
+    }
+
+    fun installUpdate(context: Context): UpdateInstallLaunch {
+        val ready = updateDownloadState.value as? UpdateDownloadState.Ready
+            ?: return UpdateInstallLaunch.Failed
+        return updateInstaller.launch(context, ready.update)
     }
 
     fun shareReport(item: HistoryEntity) {
@@ -248,11 +324,14 @@ class AppViewModel @Inject constructor(
                 settingsStore.clear()
                 toolResultStore.clear()
                 exportManager.clearCache()
+                updateDownloadController.clearAll()
+                updateNotifier.cancelAll()
             }.onSuccess {
                 operations.clearFinished()
                 mutableConfigDocument.value = null
                 mutableToolScanProfile.value = null
                 mutableUpdateResult.value = null
+                mutableUpdatePrompt.value = null
                 mutableAccountError.value = null
                 mutableHasAccount.value = false
             }.onFailure {
@@ -267,5 +346,51 @@ class AppViewModel @Inject constructor(
 
     private fun refreshAccount() {
         viewModelScope.launch { mutableHasAccount.value = accountStore.hasAccount() }
+    }
+
+    private suspend fun initializeUpdates() {
+        val installedVersion = BuildConfig.VERSION_NAME.substringBefore('-')
+        val stored = updateStateStore.snapshot()
+        if (stored.availableUpdate != null && compareVersions(stored.availableUpdate.version, installedVersion) <= 0) {
+            clearStoredUpdate()
+        } else {
+            updateDownloadController.restore()
+            if (updateDownloadState.value is UpdateDownloadState.Downloading) startUpdateMonitor()
+        }
+        val current = updateStateStore.snapshot()
+        if (!shouldAutomaticallyCheck(System.currentTimeMillis(), current.dismissedUntilMillis)) return
+        if (updateDownloadState.value !is UpdateDownloadState.Idle) return
+        val checked = runCatching { updateChecker.check() }.getOrNull()
+        val available = checked?.toAvailableUpdate()
+        when {
+            available != null -> {
+                updateStateStore.saveAvailableUpdate(available)
+                mutableUpdatePrompt.value = available
+                updateNotifier.showAvailable(available)
+            }
+            current.availableUpdate != null -> {
+                mutableUpdatePrompt.value = current.availableUpdate
+                updateNotifier.showAvailable(current.availableUpdate)
+            }
+        }
+    }
+
+    private fun startUpdateMonitor() {
+        updateMonitorJob?.cancel()
+        updateMonitorJob = viewModelScope.launch {
+            updateDownloadController.monitorUntilTerminal()
+            when (val state = updateDownloadState.value) {
+                is UpdateDownloadState.Ready -> updateNotifier.showReady(state.update)
+                is UpdateDownloadState.Failed -> updateNotifier.showFailed(state.update)
+                else -> Unit
+            }
+        }
+    }
+
+    private suspend fun clearStoredUpdate() {
+        updateMonitorJob?.cancel()
+        updateDownloadController.clearAll()
+        updateNotifier.cancelAll()
+        mutableUpdatePrompt.value = null
     }
 }

@@ -1,5 +1,9 @@
 package io.github.openwarpkit.warpscout.ui
 
+import android.content.Intent
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
@@ -28,8 +32,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.NavHost
@@ -38,6 +44,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import io.github.openwarpkit.warpscout.R
 import io.github.openwarpkit.warpscout.core.OperationState
+import io.github.openwarpkit.warpscout.data.UpdateDownloadState
 import io.github.openwarpkit.warpscout.ui.components.ScanOperationDock
 import io.github.openwarpkit.warpscout.ui.components.SocksOperationDock
 import io.github.openwarpkit.warpscout.ui.screen.AboutScreen
@@ -48,6 +55,8 @@ import io.github.openwarpkit.warpscout.ui.screen.ReportScreen
 import io.github.openwarpkit.warpscout.ui.screen.ScanScreen
 import io.github.openwarpkit.warpscout.ui.screen.SettingsScreen
 import io.github.openwarpkit.warpscout.ui.screen.ToolsScreen
+import io.github.openwarpkit.warpscout.ui.screen.UpdateAvailableSheet
+import io.github.openwarpkit.warpscout.ui.screen.UpdateWizardScreen
 import io.github.openwarpkit.warpscout.ui.theme.WarpScoutTheme
 
 private data class Destination(
@@ -79,21 +88,55 @@ internal fun operationDockKind(state: OperationState): OperationDockKind = when 
 fun WarpScoutApp(viewModel: AppViewModel = hiltViewModel()) {
     val hasAccount by viewModel.hasAccount.collectAsStateWithLifecycle()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val operation by viewModel.operation.collectAsStateWithLifecycle()
+    val updatePrompt by viewModel.updatePrompt.collectAsStateWithLifecycle()
+    val updateDownloadState by viewModel.updateDownloadState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
     WarpScoutTheme(dynamicColor = settings.dynamicColor) {
         Surface(
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background,
             contentColor = MaterialTheme.colorScheme.onBackground
         ) {
-            when (hasAccount) {
-                null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
+            Box(Modifier.fillMaxSize()) {
+                when (hasAccount) {
+                    null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
+                    }
+                    false -> OnboardingScreen(viewModel)
+                    true -> MainNavigation(viewModel)
                 }
-                false -> OnboardingScreen(viewModel)
-                true -> MainNavigation(viewModel)
+                if (updateDownloadState is UpdateDownloadState.Idle) {
+                    updatePrompt?.let { update ->
+                        UpdateAvailableSheet(
+                            update = update,
+                            updateEnabled = !operation.running,
+                            onUpdate = viewModel::startUpdate,
+                            onDismiss = viewModel::dismissUpdatePrompt
+                        )
+                    }
+                }
+                UpdateWizardScreen(
+                    state = updateDownloadState,
+                    onCancel = viewModel::cancelUpdate,
+                    onRetry = viewModel::retryUpdate,
+                    onInstall = { viewModel.installUpdate(context) },
+                    onOpenRelease = { url ->
+                        runCatching {
+                            context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri()))
+                        }
+                    },
+                    onBack = { context.findActivity()?.moveTaskToBack(true) }
+                )
             }
         }
     }
+}
+
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
 }
 
 @Composable

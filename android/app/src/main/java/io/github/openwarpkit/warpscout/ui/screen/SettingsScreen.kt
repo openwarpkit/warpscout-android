@@ -1,8 +1,5 @@
 package io.github.openwarpkit.warpscout.ui.screen
 
-import android.content.Intent
-import android.net.Uri
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -11,6 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
@@ -34,6 +32,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.DeleteForever
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.Icon
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -41,7 +40,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
@@ -49,6 +47,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
 import io.github.openwarpkit.warpscout.R
+import io.github.openwarpkit.warpscout.data.UpdateDownloadState
 import io.github.openwarpkit.warpscout.ui.AppViewModel
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -56,11 +55,13 @@ import io.github.openwarpkit.warpscout.ui.AppViewModel
 fun SettingsScreen(viewModel: AppViewModel, onAbout: () -> Unit) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val updateResult by viewModel.updateResult.collectAsStateWithLifecycle()
+    val updateChecking by viewModel.updateChecking.collectAsStateWithLifecycle()
+    val storedUpdate by viewModel.storedUpdate.collectAsStateWithLifecycle()
+    val updateDownloadState by viewModel.updateDownloadState.collectAsStateWithLifecycle()
     val operation by viewModel.operation.collectAsStateWithLifecycle()
     val exportError by viewModel.exportError.collectAsStateWithLifecycle()
     var relayUrl by remember(settings.relayUrl) { mutableStateOf(settings.relayUrl) }
     var showClearDialog by remember { mutableStateOf(false) }
-    val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
 
     LaunchedEffect(exportError) {
@@ -131,25 +132,58 @@ fun SettingsScreen(viewModel: AppViewModel, onAbout: () -> Unit) {
             HorizontalDivider()
             LanguageSelector()
             HorizontalDivider()
-            Button(onClick = viewModel::checkUpdates) { Text(stringResource(R.string.check_updates)) }
+            Text(stringResource(R.string.android_updates), style = MaterialTheme.typography.titleMedium)
+            OutlinedButton(
+                onClick = viewModel::checkUpdates,
+                enabled = !updateChecking && updateDownloadState is UpdateDownloadState.Idle,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                if (updateChecking) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp
+                    )
+                    Text(stringResource(R.string.checking_updates), modifier = Modifier.padding(start = 10.dp))
+                } else {
+                    Text(stringResource(R.string.check_updates))
+                }
+            }
             updateResult?.fold(
                 onSuccess = { result ->
-                    Text(
-                        if (!result.releaseFound) {
-                            stringResource(R.string.no_android_releases)
-                        } else if (result.updateAvailable) {
-                            stringResource(R.string.update_available, result.latestVersion)
-                        } else {
-                            stringResource(R.string.update_current)
-                        },
-                        modifier = if (result.updateAvailable) Modifier.clickable {
-                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(result.releaseUrl)))
-                        } else Modifier,
-                        color = if (result.updateAvailable) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                    )
+                    if (!result.updateAvailable && storedUpdate.availableUpdate == null) {
+                        Text(
+                            if (!result.releaseFound) {
+                                stringResource(R.string.no_android_releases)
+                            } else {
+                                stringResource(R.string.update_current)
+                            },
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
                 },
                 onFailure = { Text(it.message ?: stringResource(R.string.operation_failed), color = MaterialTheme.colorScheme.error) }
             )
+            storedUpdate.availableUpdate?.let { update ->
+                Text(
+                    text = stringResource(R.string.update_available, update.version),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Button(
+                    onClick = viewModel::startUpdate,
+                    enabled = !operation.running && updateDownloadState is UpdateDownloadState.Idle,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(stringResource(R.string.update_now))
+                }
+                if (operation.running) {
+                    Text(
+                        text = stringResource(R.string.update_operation_in_progress),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
             HorizontalDivider()
             OutlinedButton(
                 onClick = onAbout,

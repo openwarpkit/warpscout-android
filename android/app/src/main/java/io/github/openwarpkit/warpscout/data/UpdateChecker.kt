@@ -1,5 +1,6 @@
 package io.github.openwarpkit.warpscout.data
 
+import android.os.Build
 import io.github.openwarpkit.warpscout.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -12,14 +13,22 @@ data class UpdateResult(
     val latestVersion: String,
     val releaseUrl: String,
     val updateAvailable: Boolean,
-    val releaseFound: Boolean
+    val releaseFound: Boolean,
+    val apkAsset: ReleaseAsset? = null
+)
+
+data class ReleaseAsset(
+    val name: String,
+    val downloadUrl: String,
+    val size: Long
 )
 
 data class AndroidRelease(
     val tag: String,
     val url: String,
     val draft: Boolean,
-    val prerelease: Boolean
+    val prerelease: Boolean,
+    val assets: List<ReleaseAsset> = emptyList()
 )
 
 class UpdateChecker @Inject constructor() {
@@ -39,7 +48,18 @@ class UpdateChecker @Inject constructor() {
                             tag = it.optString("tag_name"),
                             url = it.optString("html_url"),
                             draft = it.optBoolean("draft"),
-                            prerelease = it.optBoolean("prerelease")
+                            prerelease = it.optBoolean("prerelease"),
+                            assets = it.optJSONArray("assets")?.let { assets ->
+                                (0 until assets.length()).map { assetIndex ->
+                                    assets.getJSONObject(assetIndex).let { asset ->
+                                        ReleaseAsset(
+                                            name = asset.optString("name"),
+                                            downloadUrl = asset.optString("browser_download_url"),
+                                            size = asset.optLong("size")
+                                        )
+                                    }
+                                }
+                            }.orEmpty()
                         )
                     }
                 }
@@ -49,19 +69,12 @@ class UpdateChecker @Inject constructor() {
                 latestVersion = latest,
                 releaseUrl = release.url,
                 updateAvailable = compareVersions(latest, BuildConfig.VERSION_NAME.substringBefore('-')) > 0,
-                releaseFound = true
+                releaseFound = true,
+                apkAsset = selectAndroidApkAsset(release.assets, Build.SUPPORTED_ABIS.toList())
             )
         } finally {
             connection.disconnect()
         }
-    }
-
-    private fun compareVersions(left: String, right: String): Int {
-        val a = left.split('.').map { it.toIntOrNull() ?: 0 }
-        val b = right.split('.').map { it.toIntOrNull() ?: 0 }
-        return (0 until maxOf(a.size, b.size))
-            .map { (a.getOrElse(it) { 0 }).compareTo(b.getOrElse(it) { 0 }) }
-            .firstOrNull { it != 0 } ?: 0
     }
 
     private companion object {
@@ -71,4 +84,20 @@ class UpdateChecker @Inject constructor() {
 
 fun selectAndroidRelease(releases: List<AndroidRelease>): AndroidRelease? = releases.firstOrNull {
     !it.draft && !it.prerelease && it.tag.startsWith("android-v")
+}
+
+fun selectAndroidApkAsset(assets: List<ReleaseAsset>, supportedAbis: List<String>): ReleaseAsset? {
+    val apkAssets = assets.filter { it.name.endsWith(".apk", ignoreCase = true) }
+    supportedAbis.forEach { abi ->
+        apkAssets.firstOrNull { it.name.endsWith("_${abi}.apk", ignoreCase = true) }?.let { return it }
+    }
+    return apkAssets.firstOrNull { it.name.endsWith("_universal.apk", ignoreCase = true) }
+}
+
+fun compareVersions(left: String, right: String): Int {
+    val a = left.split('.').map { it.toIntOrNull() ?: 0 }
+    val b = right.split('.').map { it.toIntOrNull() ?: 0 }
+    return (0 until maxOf(a.size, b.size))
+        .map { (a.getOrElse(it) { 0 }).compareTo(b.getOrElse(it) { 0 }) }
+        .firstOrNull { it != 0 } ?: 0
 }
