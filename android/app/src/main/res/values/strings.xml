@@ -83,6 +83,8 @@
     <string name="core_version">Go core</string>
     <string name="upstream_version">Upstream base</string>
     <string name="credits">Credits</string>
+    <string name="credit_project">Project</string>
+    <string name="credit_description">Description</string>
     <string name="independent_notice">This is an independent OpenWarpKit project. It is not an official Android release maintained by the upstream author.</string>
     <string name="credit_android">the Android application maintained by OpenWarpKit</string>
     <string name="credit_warpscout">the original WARPSCOUT CLI by Nikita S. (@vernette)</string>

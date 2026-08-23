@@ -35,11 +35,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextDecoration
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import io.github.openwarpkit.warpscout.BuildConfig
 import io.github.openwarpkit.warpscout.R
@@ -116,7 +113,7 @@ fun AboutScreen(viewModel: AppViewModel, onBack: () -> Unit) {
             )
             HorizontalDivider()
             Text(stringResource(R.string.credits), style = MaterialTheme.typography.titleLarge)
-            credits.forEach { credit -> CreditRow(context, credit) }
+            CreditTable(context)
             HorizontalDivider()
             LinkGrid(context)
         }
@@ -124,30 +121,65 @@ fun AboutScreen(viewModel: AppViewModel, onBack: () -> Unit) {
 }
 
 @Composable
-private fun CreditRow(context: Context, credit: CreditLink) {
-    val description = stringResource(credit.description)
-    val primary = MaterialTheme.colorScheme.primary
-    val text = buildAnnotatedString {
-        withStyle(
-            SpanStyle(
-                color = primary,
-                textDecoration = TextDecoration.Underline
-            )
+private fun CreditTable(context: Context) {
+    Column(Modifier.fillMaxWidth()) {
+        Surface(
+            shape = MaterialTheme.shapes.small,
+            color = MaterialTheme.colorScheme.surfaceVariant
         ) {
-            append(credit.label)
+            Row(
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    text = stringResource(R.string.credit_project),
+                    modifier = Modifier.weight(0.42f),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = stringResource(R.string.credit_description),
+                    modifier = Modifier.weight(0.58f),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
-        append(" - ")
-        append(description)
+
+        credits.forEachIndexed { index, credit ->
+            CreditRow(context, credit)
+            if (index < credits.lastIndex) {
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            }
+        }
     }
-    Text(
-        text = text,
+}
+
+@Composable
+private fun CreditRow(context: Context, credit: CreditLink) {
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 48.dp)
             .clickable { openUrl(context, credit.url) }
-            .padding(vertical = 4.dp),
-        style = MaterialTheme.typography.bodyMedium
-    )
+            .padding(horizontal = 10.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        Text(
+            text = credit.label,
+            modifier = Modifier.weight(0.42f),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.primary,
+            textDecoration = TextDecoration.Underline
+        )
+        Text(
+            text = stringResource(credit.description),
+            modifier = Modifier.weight(0.58f),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
 }
 
 @Composable

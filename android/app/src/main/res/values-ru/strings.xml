@@ -83,6 +83,8 @@
     <string name="core_version">Go-ядро</string>
     <string name="upstream_version">База upstream</string>
     <string name="credits">Авторы и зависимости</string>
+    <string name="credit_project">Проект</string>
+    <string name="credit_description">Описание</string>
     <string name="independent_notice">Это независимый проект OpenWarpKit. Он не является официальным Android-релизом автора upstream.</string>
     <string name="credit_android">Android-приложение, поддерживаемое OpenWarpKit</string>
     <string name="credit_warpscout">оригинальный CLI WARPSCOUT от Nikita S. (@vernette)</string>
