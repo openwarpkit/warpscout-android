@@ -26,10 +26,16 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 import javax.inject.Inject
+
+data class HistorySnapshot(
+    val loaded: Boolean = false,
+    val items: List<HistoryEntity> = emptyList()
+)
 
 @HiltViewModel
 class AppViewModel @Inject constructor(
@@ -61,7 +67,12 @@ class AppViewModel @Inject constructor(
     val toolScanProfile: StateFlow<ToolScanProfile?> = mutableToolScanProfile.asStateFlow()
 
     val operation = operations.state
-    val history = historyDao.observeAll().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val historySnapshot = historyDao.observeAll()
+        .map { HistorySnapshot(loaded = true, items = it) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HistorySnapshot())
+    val history = historySnapshot
+        .map { it.items }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList<HistoryEntity>())
     val toolResults = toolResultStore.results.stateIn(
         viewModelScope,
         SharingStarted.WhileSubscribed(5_000),

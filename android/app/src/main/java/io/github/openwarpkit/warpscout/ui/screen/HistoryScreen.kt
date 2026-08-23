@@ -1,5 +1,7 @@
 package io.github.openwarpkit.warpscout.ui.screen
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -21,31 +23,73 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.openwarpkit.warpscout.R
 import io.github.openwarpkit.warpscout.data.HistoryEntity
 import io.github.openwarpkit.warpscout.ui.AppViewModel
+import io.github.openwarpkit.warpscout.ui.HistoryFocusRequest
+import io.github.openwarpkit.warpscout.ui.HistoryFocusResolution
+import io.github.openwarpkit.warpscout.ui.resolveHistoryFocus
 import java.text.DateFormat
 import java.util.Date
+import kotlinx.coroutines.delay
+
+private const val HistoryHighlightDurationMs = 1_800L
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HistoryScreen(
     viewModel: AppViewModel,
-    highlightedId: Long? = null,
+    focusRequest: HistoryFocusRequest? = null,
+    onFocusConsumed: (HistoryFocusRequest) -> Unit = {},
     onOpenReport: (Long) -> Unit
 ) {
-    val history by viewModel.history.collectAsStateWithLifecycle()
+    val historySnapshot by viewModel.historySnapshot.collectAsStateWithLifecycle()
     val operation by viewModel.operation.collectAsStateWithLifecycle()
+    val history = historySnapshot.items
     val listState = rememberLazyListState()
+    var highlightedRequest by remember { mutableStateOf<HistoryFocusRequest?>(null) }
 
-    LaunchedEffect(highlightedId, history) {
-        val index = history.indexOfFirst { it.id == highlightedId }
-        if (index >= 0) listState.animateScrollToItem(index)
+    LaunchedEffect(focusRequest, historySnapshot) {
+        val request = focusRequest ?: return@LaunchedEffect
+        when (
+            val resolution = resolveHistoryFocus(
+                request,
+                historySnapshot.loaded,
+                history.map(HistoryEntity::id)
+            )
+        ) {
+            HistoryFocusResolution.Waiting -> Unit
+            is HistoryFocusResolution.Found -> {
+                highlightedRequest = resolution.request
+                onFocusConsumed(resolution.request)
+            }
+            is HistoryFocusResolution.Missing -> {
+                highlightedRequest = null
+                onFocusConsumed(resolution.request)
+            }
+        }
+    }
+
+    LaunchedEffect(highlightedRequest, history) {
+        val request = highlightedRequest ?: return@LaunchedEffect
+        val index = history.indexOfFirst { it.id == request.historyId }
+        if (index < 0) {
+            highlightedRequest = null
+            return@LaunchedEffect
+        }
+        listState.animateScrollToItem(index)
+        delay(HistoryHighlightDurationMs)
+        if (highlightedRequest == request) highlightedRequest = null
     }
 
     Scaffold(topBar = { TopAppBar(title = { Text(stringResource(R.string.history_title)) }) }) { padding ->
@@ -77,15 +121,25 @@ fun HistoryScreen(
                 )
             ) {
                 items(history, key = HistoryEntity::id) { item ->
-                    Surface(
-                        color = if (item.id == highlightedId) {
-                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+                    val highlighted = item.id == highlightedRequest?.historyId
+                    val containerColor by animateColorAsState(
+                        targetValue = if (highlighted) {
+                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
                         } else {
                             MaterialTheme.colorScheme.background
                         },
+                        animationSpec = tween(durationMillis = 220),
+                        label = "historyRowHighlight"
+                    )
+                    Surface(
+                        color = containerColor,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { onOpenReport(item.id) }
+                            .semantics { selected = highlighted }
+                            .clickable {
+                                highlightedRequest = null
+                                onOpenReport(item.id)
+                            }
                     ) {
                         HistoryRow(item)
                     }

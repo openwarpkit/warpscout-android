@@ -24,9 +24,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -91,12 +89,12 @@ private fun MainNavigation(viewModel: AppViewModel) {
     val currentDestination = backStackEntry?.destination
     val selectedPrimaryRoute = primaryRouteFor(currentDestination?.route)
     val operation by viewModel.operation.collectAsStateWithLifecycle()
-    var highlightedHistoryId by rememberSaveable { mutableStateOf<Long?>(null) }
+    val historyNavigationState = remember { HistoryNavigationState() }
     val showScanDock = operation.operation == "scan"
     val openLatestHistory = {
-        operation.historyId?.let {
-            highlightedHistoryId = it
-            navController.navigatePrimary("history")
+        operation.historyId?.let { historyId ->
+            val request = historyNavigationState.openCompletedScan(historyId)
+            navController.navigateToHistoryRoot(request)
         }
         Unit
     }
@@ -119,7 +117,12 @@ private fun MainNavigation(viewModel: AppViewModel) {
                     }
                 }
                 Box(Modifier.weight(1f)) {
-                    AppNavHost(viewModel, navController, highlightedHistoryId)
+                    AppNavHost(
+                        viewModel,
+                        navController,
+                        historyNavigationState.pendingFocus,
+                        { request -> historyNavigationState.consumeFocus(request) }
+                    )
                     if (showScanDock) {
                         ScanOperationDock(
                             state = operation,
@@ -160,7 +163,12 @@ private fun MainNavigation(viewModel: AppViewModel) {
                         .padding(padding)
                         .consumeWindowInsets(padding)
                 ) {
-                    AppNavHost(viewModel, navController, highlightedHistoryId)
+                    AppNavHost(
+                        viewModel,
+                        navController,
+                        historyNavigationState.pendingFocus,
+                        { request -> historyNavigationState.consumeFocus(request) }
+                    )
                     if (showScanDock) {
                         ScanOperationDock(
                             state = operation,
@@ -180,14 +188,16 @@ private fun MainNavigation(viewModel: AppViewModel) {
 private fun AppNavHost(
     viewModel: AppViewModel,
     navController: androidx.navigation.NavHostController,
-    highlightedHistoryId: Long?
+    historyFocusRequest: HistoryFocusRequest?,
+    onHistoryFocusConsumed: (HistoryFocusRequest) -> Unit
 ) {
     NavHost(navController = navController, startDestination = "scan") {
         composable("scan") { ScanScreen(viewModel) }
         composable("history") {
             HistoryScreen(
                 viewModel = viewModel,
-                highlightedId = highlightedHistoryId,
+                focusRequest = historyFocusRequest,
+                onFocusConsumed = onHistoryFocusConsumed,
                 onOpenReport = { historyId -> navController.navigate("report/$historyId") }
             )
         }
@@ -241,5 +251,14 @@ private fun androidx.navigation.NavHostController.navigatePrimary(route: String)
         popUpTo(graph.startDestinationId) { saveState = true }
         launchSingleTop = true
         restoreState = true
+    }
+}
+
+private fun androidx.navigation.NavHostController.navigateToHistoryRoot(request: HistoryNavigationRequest) {
+    if (request.clearSavedHistory) clearBackStack(request.destination)
+    navigate(request.destination) {
+        popUpTo(graph.startDestinationId) { saveState = request.savePoppedState }
+        launchSingleTop = true
+        restoreState = request.restoreState
     }
 }
