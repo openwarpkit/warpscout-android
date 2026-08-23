@@ -26,6 +26,7 @@
     <string name="phase_find_sni">Поиск MASQUE SNI</string>
     <string name="phase_handshake">Подключение туннеля</string>
     <string name="phase_listening">SOCKS-прокси запущен</string>
+    <string name="socks_listening_address">Слушает на 127.0.0.1:%1$d</string>
     <string name="phase_outer_tunnel">Подключение внешнего туннеля</string>
     <string name="phase_port_selected">Используется выбранный порт</string>
     <string name="working_endpoints">Рабочие</string>
@@ -65,7 +66,13 @@
     <string name="find_sni">Поиск MASQUE SNI</string>
     <string name="find_sni_description">Поиск сохраняемого профиля SNI для H3 или H2.</string>
     <string name="socks">SOCKS-прокси</string>
-    <string name="socks_description">Прослушивание только loopback-интерфейса устройства.</string>
+    <string name="socks_description">Выберите протокол и лучший адрес из отчёта сканирования. Прокси доступен только приложениям на этом устройстве.</string>
+    <string name="socks_instructions">Инструкция</string>
+    <string name="socks_instructions_title">Как подключить приложение</string>
+    <string name="socks_instructions_intro">После запуска прокси выберите SOCKS5 в настройках прокси нужного приложения на этом устройстве и укажите:</string>
+    <string name="socks_proxy_address">127.0.0.1:%1$s</string>
+    <string name="socks_instructions_details">Логин и пароль не нужны. Если есть настройка Remote DNS или DNS через прокси, включите её.</string>
+    <string name="socks_instructions_done">Понятно</string>
     <string name="start">Запустить</string>
     <string name="settings_title">Настройки</string>
     <string name="relay">Резервный relay для регистрации</string>

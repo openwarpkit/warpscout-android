@@ -1,6 +1,7 @@
 package io.github.openwarpkit.warpscout.ui
 
 import android.net.Uri
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -46,8 +47,11 @@ class AppViewModel @Inject constructor(
     private val exportManager: ExportManager,
     private val toolResultStore: ToolResultStore,
     private val updateChecker: UpdateChecker,
+    savedStateHandle: SavedStateHandle,
     val coreBridge: CoreBridge
 ) : ViewModel() {
+    private val socksFormStateStore = SocksFormStateStore(savedStateHandle)
+
     private val mutableHasAccount = MutableStateFlow<Boolean?>(null)
     val hasAccount: StateFlow<Boolean?> = mutableHasAccount.asStateFlow()
 
@@ -79,6 +83,9 @@ class AppViewModel @Inject constructor(
         io.github.openwarpkit.warpscout.data.ToolSearchResults()
     )
     val settings = settingsStore.settings.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AppSettings())
+    val socksProtocol = socksFormStateStore.protocol
+    val socksEndpoint = socksFormStateStore.endpoint
+    val socksPort = socksFormStateStore.port
 
     init {
         refreshAccount()
@@ -118,6 +125,12 @@ class AppViewModel @Inject constructor(
     fun stop() = operations.stop()
 
     fun dismissOperation() = operations.clearFinished()
+
+    fun setSocksProtocol(value: String) = socksFormStateStore.setProtocol(value)
+
+    fun setSocksEndpoint(value: String) = socksFormStateStore.setEndpoint(value)
+
+    fun setSocksPort(value: String) = socksFormStateStore.setPort(value)
 
     fun setRelayEnabled(enabled: Boolean) {
         viewModelScope.launch { settingsStore.setRelayEnabled(enabled) }

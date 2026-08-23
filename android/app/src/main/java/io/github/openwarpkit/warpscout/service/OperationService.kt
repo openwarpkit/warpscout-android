@@ -78,6 +78,7 @@ class OperationService : Service() {
         val payload = intent.getStringExtra(EXTRA_PAYLOAD) ?: "{}"
         val preset = intent.getStringExtra(EXTRA_PRESET).orEmpty()
         val protocol = intent.getStringExtra(EXTRA_PROTOCOL).orEmpty()
+        val localPort = intent.getIntExtra(EXTRA_LOCAL_PORT, 0).takeIf { it in 1..65535 }
         stoppedByUser.set(false)
         stoppedByNetwork.set(false)
         finishing.set(false)
@@ -88,7 +89,8 @@ class OperationService : Service() {
             running = true,
             operation = operation,
             phase = getString(R.string.phase_preparing),
-            startedAt = System.currentTimeMillis()
+            startedAt = System.currentTimeMillis(),
+            localPort = localPort
         )
         operations.setState(initial)
         startForeground(NOTIFICATION_ID, notification(initial))
@@ -376,6 +378,7 @@ class OperationService : Service() {
         const val EXTRA_PAYLOAD = "payload"
         const val EXTRA_PRESET = "preset"
         const val EXTRA_PROTOCOL = "protocol"
+        const val EXTRA_LOCAL_PORT = "local_port"
         private const val CHANNEL_ID = "operations"
         private const val NOTIFICATION_ID = 1001
     }

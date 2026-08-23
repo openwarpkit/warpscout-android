@@ -26,6 +26,7 @@ class OperationRepository @Inject constructor(
             .putExtra(OperationService.EXTRA_PAYLOAD, request.payloadJson)
             .putExtra(OperationService.EXTRA_PRESET, request.preset)
             .putExtra(OperationService.EXTRA_PROTOCOL, request.protocol)
+            .putExtra(OperationService.EXTRA_LOCAL_PORT, request.localPort ?: 0)
         ContextCompat.startForegroundService(context, intent)
         return true
     }

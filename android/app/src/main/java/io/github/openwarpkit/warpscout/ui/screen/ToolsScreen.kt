@@ -20,8 +20,13 @@ import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -67,15 +72,35 @@ private data class DiscoveryAttempt(
     val selected: Boolean
 )
 
+internal data class SocksProtocolOption(val id: String, val label: String)
+
+internal val socksProtocolOptions = listOf(
+    SocksProtocolOption("wg", "WG"),
+    SocksProtocolOption("awg", "AWG"),
+    SocksProtocolOption("masque", "MASQUE H3"),
+    SocksProtocolOption("masque-h2", "MASQUE H2")
+)
+
+internal data class SocksOperationParameters(
+    val endpoint: String,
+    val port: Int,
+    val protocol: String,
+    val tunnelProtocol: String,
+    val timeoutSec: Int
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ToolsScreen(viewModel: AppViewModel, onOpenScan: () -> Unit) {
     val operation by viewModel.operation.collectAsStateWithLifecycle()
     val results by viewModel.toolResults.collectAsStateWithLifecycle()
     val exportError by viewModel.exportError.collectAsStateWithLifecycle()
+    val socksPort by viewModel.socksPort.collectAsStateWithLifecycle()
+    val socksEndpoint by viewModel.socksEndpoint.collectAsStateWithLifecycle()
+    val socksProtocol by viewModel.socksProtocol.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
-    var socksPort by rememberSaveable { mutableStateOf("1080") }
-    var socksEndpoint by rememberSaveable { mutableStateOf("") }
+    var socksProtocolExpanded by remember { mutableStateOf(false) }
+    var showSocksInstructions by remember { mutableStateOf(false) }
     var expandedOperation by rememberSaveable { mutableStateOf<String?>(null) }
     var pendingDocument by remember { mutableStateOf<TextDocument?>(null) }
     val saveLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
@@ -86,6 +111,32 @@ fun ToolsScreen(viewModel: AppViewModel, onOpenScan: () -> Unit) {
 
     LaunchedEffect(exportError) {
         exportError?.let { snackbarHostState.showSnackbar(it) }
+    }
+
+    if (showSocksInstructions) {
+        AlertDialog(
+            onDismissRequest = { showSocksInstructions = false },
+            title = { Text(stringResource(R.string.socks_instructions_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(stringResource(R.string.socks_instructions_intro))
+                    Text(
+                        text = stringResource(
+                            R.string.socks_proxy_address,
+                            socksPort.trim().ifEmpty { "1080" }
+                        ),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontFamily = FontFamily.Monospace
+                    )
+                    Text(stringResource(R.string.socks_instructions_details))
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showSocksInstructions = false }) {
+                    Text(stringResource(R.string.socks_instructions_done))
+                }
+            }
+        )
     }
 
     Scaffold(
@@ -166,39 +217,108 @@ fun ToolsScreen(viewModel: AppViewModel, onOpenScan: () -> Unit) {
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                ExposedDropdownMenuBox(
+                    expanded = socksProtocolExpanded,
+                    onExpandedChange = { socksProtocolExpanded = !socksProtocolExpanded }
+                ) {
+                    val selectedProtocol = socksProtocolOptions.first { it.id == socksProtocol }
+                    OutlinedTextField(
+                        value = selectedProtocol.label,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text(stringResource(R.string.protocol)) },
+                        trailingIcon = {
+                            ExposedDropdownMenuDefaults.TrailingIcon(expanded = socksProtocolExpanded)
+                        },
+                        modifier = Modifier
+                            .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
+                            .fillMaxWidth(),
+                        singleLine = true
+                    )
+                    ExposedDropdownMenu(
+                        expanded = socksProtocolExpanded,
+                        onDismissRequest = { socksProtocolExpanded = false }
+                    ) {
+                        socksProtocolOptions.forEach { option ->
+                            DropdownMenuItem(
+                                text = { Text(option.label) },
+                                onClick = {
+                                    viewModel.setSocksProtocol(option.id)
+                                    socksProtocolExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
                 OutlinedTextField(
                     value = socksEndpoint,
-                    onValueChange = { socksEndpoint = it },
+                    onValueChange = viewModel::setSocksEndpoint,
                     label = { Text(stringResource(R.string.best_endpoint)) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
                 OutlinedTextField(
                     value = socksPort,
-                    onValueChange = { socksPort = it },
+                    onValueChange = viewModel::setSocksPort,
                     label = { Text(stringResource(R.string.port)) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
-                Button(
-                    enabled = !operation.running && socksEndpoint.isNotBlank() && socksPort.toIntOrNull() in 1..65535,
-                    onClick = {
-                        val payload = JSONObject()
-                            .put("endpoint", socksEndpoint.trim())
-                            .put("port", socksPort.toInt())
-                            .put("protocol", "wg")
-                            .put("scan", JSONObject().put("protocol", "wg").put("timeoutSec", 2))
-                            .toString()
-                        viewModel.start(OperationRequest("socks", payload, protocol = "wg"))
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        enabled = !operation.running && socksEndpoint.isNotBlank() && socksPort.toIntOrNull() in 1..65535,
+                        onClick = {
+                            viewModel.start(
+                                socksOperationParameters(
+                                    endpoint = socksEndpoint.trim(),
+                                    port = socksPort.toInt(),
+                                    protocol = socksProtocol
+                                ).toOperationRequest()
+                            )
+                        }
+                    ) { Text(stringResource(R.string.start)) }
+                    OutlinedButton(onClick = { showSocksInstructions = true }) {
+                        Text(stringResource(R.string.socks_instructions))
                     }
-                ) { Text(stringResource(R.string.start)) }
+                }
             }
-            if (operation.operation in setOf("find-junk", "find-sni", "socks")) {
+            if (
+                operation.operation in setOf("find-junk", "find-sni") ||
+                operation.operation == "socks" && (!operation.running || operation.localPort == null)
+            ) {
                 OperationPanel(operation, viewModel::stop, viewModel::dismissOperation)
             }
         }
     }
+}
+
+internal fun socksOperationParameters(
+    endpoint: String,
+    port: Int,
+    protocol: String
+): SocksOperationParameters {
+    require(socksProtocolOptions.any { it.id == protocol })
+    return SocksOperationParameters(
+        endpoint = endpoint,
+        port = port,
+        protocol = protocol,
+        tunnelProtocol = protocol,
+        timeoutSec = 2
+    )
+}
+
+private fun SocksOperationParameters.toOperationRequest(): OperationRequest {
+    val payload = JSONObject()
+        .put("endpoint", endpoint)
+        .put("port", port)
+        .put("protocol", protocol)
+        .put("scan", JSONObject().put("protocol", tunnelProtocol).put("timeoutSec", timeoutSec))
+        .toString()
+    return OperationRequest("socks", payload, protocol = protocol, localPort = port)
 }
 
 @Composable

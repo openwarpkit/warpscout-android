@@ -26,6 +26,7 @@
     <string name="phase_find_sni">Searching MASQUE SNI</string>
     <string name="phase_handshake">Opening tunnel</string>
     <string name="phase_listening">SOCKS proxy is running</string>
+    <string name="socks_listening_address">Listening on 127.0.0.1:%1$d</string>
     <string name="phase_outer_tunnel">Opening outer tunnel</string>
     <string name="phase_port_selected">Using selected port</string>
     <string name="working_endpoints">Working</string>
@@ -65,7 +66,13 @@
     <string name="find_sni">Find MASQUE SNI</string>
     <string name="find_sni_description">Find a reusable SNI profile for H3 or H2.</string>
     <string name="socks">SOCKS proxy</string>
-    <string name="socks_description">Listen only on the device loopback interface.</string>
+    <string name="socks_description">Choose a protocol and a best endpoint from its scan report. The proxy is available only to apps on this device.</string>
+    <string name="socks_instructions">Instructions</string>
+    <string name="socks_instructions_title">Connect an app</string>
+    <string name="socks_instructions_intro">After starting the proxy, select SOCKS5 in the proxy settings of an app on this device and enter:</string>
+    <string name="socks_proxy_address">127.0.0.1:%1$s</string>
+    <string name="socks_instructions_details">No username or password is required. If the app offers Remote DNS or DNS over proxy, turn it on.</string>
+    <string name="socks_instructions_done">Got it</string>
     <string name="start">Start</string>
     <string name="settings_title">Settings</string>
     <string name="relay">Registration relay fallback</string>

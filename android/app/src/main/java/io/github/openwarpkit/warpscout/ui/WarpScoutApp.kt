@@ -37,7 +37,9 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import io.github.openwarpkit.warpscout.R
+import io.github.openwarpkit.warpscout.core.OperationState
 import io.github.openwarpkit.warpscout.ui.components.ScanOperationDock
+import io.github.openwarpkit.warpscout.ui.components.SocksOperationDock
 import io.github.openwarpkit.warpscout.ui.screen.AboutScreen
 import io.github.openwarpkit.warpscout.ui.screen.ConfigScreen
 import io.github.openwarpkit.warpscout.ui.screen.HistoryScreen
@@ -60,6 +62,18 @@ private val destinations = listOf(
     Destination("tools", R.string.nav_tools, Icons.Outlined.Build),
     Destination("settings", R.string.nav_settings, Icons.Outlined.Settings)
 )
+
+internal enum class OperationDockKind {
+    None,
+    Scan,
+    Socks
+}
+
+internal fun operationDockKind(state: OperationState): OperationDockKind = when {
+    state.operation == "scan" -> OperationDockKind.Scan
+    state.operation == "socks" && state.running && state.localPort != null -> OperationDockKind.Socks
+    else -> OperationDockKind.None
+}
 
 @Composable
 fun WarpScoutApp(viewModel: AppViewModel = hiltViewModel()) {
@@ -90,7 +104,6 @@ private fun MainNavigation(viewModel: AppViewModel) {
     val selectedPrimaryRoute = primaryRouteFor(currentDestination?.route)
     val operation by viewModel.operation.collectAsStateWithLifecycle()
     val historyNavigationState = remember { HistoryNavigationState() }
-    val showScanDock = operation.operation == "scan"
     val openLatestHistory = {
         operation.historyId?.let { historyId ->
             val request = historyNavigationState.openCompletedScan(historyId)
@@ -123,15 +136,13 @@ private fun MainNavigation(viewModel: AppViewModel) {
                         historyNavigationState.pendingFocus,
                         { request -> historyNavigationState.consumeFocus(request) }
                     )
-                    if (showScanDock) {
-                        ScanOperationDock(
-                            state = operation,
-                            onStop = viewModel::stop,
-                            onDismiss = viewModel::dismissOperation,
-                            onOpenHistory = openLatestHistory,
-                            modifier = Modifier.align(Alignment.BottomCenter)
-                        )
-                    }
+                    OperationDock(
+                        state = operation,
+                        onStop = viewModel::stop,
+                        onDismiss = viewModel::dismissOperation,
+                        onOpenHistory = openLatestHistory,
+                        modifier = Modifier.align(Alignment.BottomCenter)
+                    )
                 }
             }
         } else {
@@ -169,18 +180,41 @@ private fun MainNavigation(viewModel: AppViewModel) {
                         historyNavigationState.pendingFocus,
                         { request -> historyNavigationState.consumeFocus(request) }
                     )
-                    if (showScanDock) {
-                        ScanOperationDock(
-                            state = operation,
-                            onStop = viewModel::stop,
-                            onDismiss = viewModel::dismissOperation,
-                            onOpenHistory = openLatestHistory,
-                            modifier = Modifier.align(Alignment.BottomCenter)
-                        )
-                    }
+                    OperationDock(
+                        state = operation,
+                        onStop = viewModel::stop,
+                        onDismiss = viewModel::dismissOperation,
+                        onOpenHistory = openLatestHistory,
+                        modifier = Modifier.align(Alignment.BottomCenter)
+                    )
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun OperationDock(
+    state: OperationState,
+    onStop: () -> Unit,
+    onDismiss: () -> Unit,
+    onOpenHistory: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    when (operationDockKind(state)) {
+        OperationDockKind.Scan -> ScanOperationDock(
+            state = state,
+            onStop = onStop,
+            onDismiss = onDismiss,
+            onOpenHistory = onOpenHistory,
+            modifier = modifier
+        )
+        OperationDockKind.Socks -> SocksOperationDock(
+            state = state,
+            onStop = onStop,
+            modifier = modifier
+        )
+        OperationDockKind.None -> Unit
     }
 }
 

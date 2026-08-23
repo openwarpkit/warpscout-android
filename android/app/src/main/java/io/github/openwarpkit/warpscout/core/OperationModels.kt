@@ -15,7 +15,8 @@ data class OperationState(
     val errorCode: String? = null,
     val errorMessage: String? = null,
     val latestResultJson: String? = null,
-    val historyId: Long? = null
+    val historyId: Long? = null,
+    val localPort: Int? = null
 ) {
     val progress: Float
         get() = if (total > 0) completed.toFloat() / total else 0f
@@ -25,5 +26,6 @@ data class OperationRequest(
     val operation: String,
     val payloadJson: String,
     val preset: String = "",
-    val protocol: String = ""
+    val protocol: String = "",
+    val localPort: Int? = null
 )
