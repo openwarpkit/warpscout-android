@@ -6,8 +6,10 @@ enum class ScanPreset(val id: String) {
     Full("full")
 }
 
+const val DEFAULT_SCAN_PROTOCOL = "awg"
+
 data class ExpertScanOptions(
-    val protocol: String = "wg",
+    val protocol: String = DEFAULT_SCAN_PROTOCOL,
     val innerProtocol: String = "wg",
     val ipv6: Boolean = false,
     val port: Int = 0,

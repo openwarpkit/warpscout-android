@@ -43,6 +43,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.openwarpkit.warpscout.R
+import io.github.openwarpkit.warpscout.core.DEFAULT_SCAN_PROTOCOL
 import io.github.openwarpkit.warpscout.core.ExpertScanOptions
 import io.github.openwarpkit.warpscout.core.OperationRequest
 import io.github.openwarpkit.warpscout.core.ScanPreset
@@ -61,7 +62,7 @@ fun ScanScreen(viewModel: AppViewModel) {
     val toolProfile by viewModel.toolScanProfile.collectAsStateWithLifecycle()
     var preset by rememberSaveable { mutableStateOf(ScanPreset.Standard) }
     var expert by rememberSaveable { mutableStateOf(false) }
-    var protocol by rememberSaveable { mutableStateOf("wg") }
+    var protocol by rememberSaveable { mutableStateOf(DEFAULT_SCAN_PROTOCOL) }
     var ipv6 by rememberSaveable { mutableStateOf(false) }
     var port by rememberSaveable { mutableStateOf("0") }
     var timeout by rememberSaveable { mutableStateOf("2") }

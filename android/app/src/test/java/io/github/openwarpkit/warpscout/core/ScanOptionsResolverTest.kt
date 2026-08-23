@@ -24,7 +24,7 @@ class ScanOptionsResolverTest {
 
         val resolved = resolveScanOptions(ScanPreset.Standard, false, expert)
 
-        assertEquals("wg", resolved.protocol)
+        assertEquals("awg", resolved.protocol)
         assertEquals("wg", resolved.innerProtocol)
         assertFalse(resolved.ipv6)
         assertEquals(0, resolved.port)
