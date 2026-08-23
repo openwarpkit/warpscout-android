@@ -10,6 +10,22 @@ import org.junit.Test
 
 class HistoryNavigationStateTest {
     @Test
+    fun `scan navigation does not restore the history stack it just popped`() {
+        val options = primaryNavigationOptions(SCAN_ROUTE)
+
+        assertFalse(options.savePoppedState)
+        assertFalse(options.restoreState)
+    }
+
+    @Test
+    fun `non-start primary navigation preserves destination state`() {
+        val options = primaryNavigationOptions(HISTORY_ROUTE)
+
+        assertTrue(options.savePoppedState)
+        assertTrue(options.restoreState)
+    }
+
+    @Test
     fun `completed scan navigation closes active report detail`() {
         val request = HistoryNavigationState().openCompletedScan(42L)
 

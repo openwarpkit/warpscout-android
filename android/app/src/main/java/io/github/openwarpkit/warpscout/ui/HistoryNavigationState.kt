@@ -4,6 +4,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 
+internal const val SCAN_ROUTE = "scan"
 internal const val HISTORY_ROUTE = "history"
 
 data class HistoryFocusRequest(
@@ -17,6 +18,11 @@ internal data class HistoryNavigationRequest(
     val clearSavedHistory: Boolean = true,
     val savePoppedState: Boolean = false,
     val restoreState: Boolean = false
+)
+
+internal data class PrimaryNavigationOptions(
+    val savePoppedState: Boolean,
+    val restoreState: Boolean
 )
 
 internal sealed interface HistoryFocusResolution {
@@ -56,4 +62,12 @@ internal fun resolveHistoryFocus(
     } else {
         HistoryFocusResolution.Missing(request)
     }
+}
+
+internal fun primaryNavigationOptions(route: String): PrimaryNavigationOptions {
+    val preserveDestinationState = route != SCAN_ROUTE
+    return PrimaryNavigationOptions(
+        savePoppedState = preserveDestinationState,
+        restoreState = preserveDestinationState
+    )
 }

@@ -191,8 +191,8 @@ private fun AppNavHost(
     historyFocusRequest: HistoryFocusRequest?,
     onHistoryFocusConsumed: (HistoryFocusRequest) -> Unit
 ) {
-    NavHost(navController = navController, startDestination = "scan") {
-        composable("scan") { ScanScreen(viewModel) }
+    NavHost(navController = navController, startDestination = SCAN_ROUTE) {
+        composable(SCAN_ROUTE) { ScanScreen(viewModel) }
         composable("history") {
             HistoryScreen(
                 viewModel = viewModel,
@@ -236,7 +236,7 @@ private fun AppNavHost(
 }
 
 private fun primaryRouteFor(route: String?): String? = when {
-    route == "scan" -> "scan"
+    route == SCAN_ROUTE -> SCAN_ROUTE
     route == "history" -> "history"
     route == "tools" -> "tools"
     route == "settings" -> "settings"
@@ -247,10 +247,11 @@ private fun primaryRouteFor(route: String?): String? = when {
 }
 
 private fun androidx.navigation.NavHostController.navigatePrimary(route: String) {
+    val options = primaryNavigationOptions(route)
     navigate(route) {
-        popUpTo(graph.startDestinationId) { saveState = true }
+        popUpTo(graph.startDestinationId) { saveState = options.savePoppedState }
         launchSingleTop = true
-        restoreState = true
+        restoreState = options.restoreState
     }
 }
 
