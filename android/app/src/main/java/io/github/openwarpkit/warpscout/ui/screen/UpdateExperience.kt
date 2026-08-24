@@ -311,6 +311,7 @@ private fun downloadProgressText(downloaded: Long, total: Long): String {
 private fun failureMessage(reason: String): Int = when (reason) {
     UpdateDownloadController.FAILURE_AUTOMATIC_UNAVAILABLE -> R.string.update_failure_automatic_download_unavailable
     UpdateDownloadController.FAILURE_FILE -> R.string.update_failure_update_file_invalid
+    UpdateDownloadController.FAILURE_DIGEST -> R.string.update_failure_update_digest_invalid
     UpdateDownloadController.FAILURE_PACKAGE -> R.string.update_failure_update_package_invalid
     UpdateDownloadController.FAILURE_VERSION -> R.string.update_failure_update_version_invalid
     UpdateDownloadController.FAILURE_SIGNATURE -> R.string.update_failure_update_signature_invalid

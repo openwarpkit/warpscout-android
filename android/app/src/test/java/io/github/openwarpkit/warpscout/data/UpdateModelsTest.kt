@@ -24,6 +24,30 @@ class UpdateModelsTest {
 
     @Test
     fun updateResultRetainsExactApkAsset() {
+        val sha256 = "a".repeat(64)
+        val result = UpdateResult(
+            latestVersion = "1.2.0",
+            releaseUrl = "https://github.com/openwarpkit/warpscout-android/releases/tag/android-v1.2.0",
+            updateAvailable = true,
+            releaseFound = true,
+            apkAsset = ReleaseAsset("app.apk", "download", 42, "sha256:$sha256")
+        )
+
+        assertEquals(
+            AvailableUpdate(
+                "1.2.0",
+                "https://github.com/openwarpkit/warpscout-android/releases/tag/android-v1.2.0",
+                "download",
+                "app.apk",
+                42,
+                sha256
+            ),
+            result.toAvailableUpdate()
+        )
+    }
+
+    @Test
+    fun updateWithoutDigestRemainsAvailableForManualInstallation() {
         val result = UpdateResult(
             latestVersion = "1.2.0",
             releaseUrl = "release",
@@ -32,10 +56,7 @@ class UpdateModelsTest {
             apkAsset = ReleaseAsset("app.apk", "download", 42)
         )
 
-        assertEquals(
-            AvailableUpdate("1.2.0", "release", "download", "app.apk", 42),
-            result.toAvailableUpdate()
-        )
+        assertNull(result.toAvailableUpdate()?.apkSha256)
     }
 
     @Test

@@ -15,6 +15,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.FileOutputStream
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -37,21 +38,21 @@ class UpdateDownloadController @Inject constructor(
         }
         when {
             stored.downloadError != null -> mutableState.value = UpdateDownloadState.Failed(update, stored.downloadError)
-            stored.downloadReady -> completeDownload(update)
+            stored.downloadReady -> restoreReadyDownload(update)
             stored.downloadId > 0 -> refresh()
             else -> mutableState.value = UpdateDownloadState.Idle
         }
     }
 
     suspend fun start(update: AvailableUpdate): Boolean = withContext(Dispatchers.IO) {
-        val url = update.apkUrl
-        val name = update.apkName
-        if (url.isNullOrBlank() || name.isNullOrBlank()) {
+        if (!canAutomaticallyDownloadUpdate(update)) {
             fail(update, FAILURE_AUTOMATIC_UNAVAILABLE)
             return@withContext false
         }
+        val url = checkNotNull(update.apkUrl)
+        val name = checkNotNull(update.apkName)
         removeUpdateFiles()
-        val target = updateApkFile(context, update)
+        val target = updateDownloadApkFile(context, update)
         target.parentFile?.mkdirs()
         val request = DownloadManager.Request(url.toUri())
             .setTitle("WarpScout ${update.version}")
@@ -75,7 +76,7 @@ class UpdateDownloadController @Inject constructor(
         val update = stored.availableUpdate ?: return@withLock UpdateDownloadState.Idle.also {
             mutableState.value = it
         }
-        if (stored.downloadReady) return@withLock completeDownload(update)
+        if (stored.downloadReady) return@withLock restoreReadyDownload(update)
         if (stored.downloadId <= 0) {
             val next = stored.downloadError?.let { UpdateDownloadState.Failed(update, it) }
                 ?: UpdateDownloadState.Idle
@@ -126,13 +127,43 @@ class UpdateDownloadController @Inject constructor(
         mutableState.value = UpdateDownloadState.Idle
     }
 
+    suspend fun rejectReady(update: AvailableUpdate, reason: String) = withContext(Dispatchers.IO) {
+        removeUpdateFiles()
+        fail(update, reason)
+    }
+
     private suspend fun completeDownload(update: AvailableUpdate): UpdateDownloadState {
-        val file = updateApkFile(context, update)
-        val verificationFailure = apkVerifier.verify(file, update)
+        val downloadedFile = updateDownloadApkFile(context, update)
+        val file = verifiedUpdateApkFile(context, update)
+        val verificationFailure = runCatching {
+            file.parentFile?.mkdirs()
+            val temporaryFile = File(file.parentFile, "${file.nameWithoutExtension}.part.apk")
+            temporaryFile.delete()
+            FileOutputStream(temporaryFile).use { output ->
+                downloadedFile.inputStream().use { input -> input.copyTo(output) }
+                output.fd.sync()
+            }
+            apkVerifier.verify(temporaryFile, update)?.let { return@runCatching it }
+            file.delete()
+            if (!temporaryFile.renameTo(file)) return@runCatching FAILURE_FILE
+            downloadedFile.delete()
+            null
+        }.getOrDefault(FAILURE_FILE)
         return if (verificationFailure == null) {
             updateStateStore.setDownloadReady()
             UpdateDownloadState.Ready(update).also { mutableState.value = it }
         } else {
+            removeUpdateFiles()
+            fail(update, verificationFailure)
+        }
+    }
+
+    private suspend fun restoreReadyDownload(update: AvailableUpdate): UpdateDownloadState {
+        val verificationFailure = apkVerifier.verify(verifiedUpdateApkFile(context, update), update)
+        return if (verificationFailure == null) {
+            UpdateDownloadState.Ready(update).also { mutableState.value = it }
+        } else {
+            removeUpdateFiles()
             fail(update, verificationFailure)
         }
     }
@@ -143,8 +174,12 @@ class UpdateDownloadController @Inject constructor(
     }
 
     private fun removeUpdateFiles() {
-        updateDirectory(context).listFiles()?.forEach { file ->
-            if (file.isFile && file.extension.equals("apk", ignoreCase = true)) file.delete()
+        listOf(updateDownloadDirectory(context), verifiedUpdateDirectory(context)).forEach { directory ->
+            directory.listFiles()?.forEach { file ->
+                if (file.isFile && file.extension.equals("apk", ignoreCase = true)) {
+                    file.delete()
+                }
+            }
         }
     }
 
@@ -152,6 +187,7 @@ class UpdateDownloadController @Inject constructor(
         const val FAILURE_AUTOMATIC_UNAVAILABLE = "automatic_download_unavailable"
         const val FAILURE_DOWNLOAD = "update_download_failed"
         const val FAILURE_FILE = "update_file_invalid"
+        const val FAILURE_DIGEST = "update_digest_invalid"
         const val FAILURE_PACKAGE = "update_package_invalid"
         const val FAILURE_VERSION = "update_version_invalid"
         const val FAILURE_SIGNATURE = "update_signature_invalid"
@@ -159,14 +195,22 @@ class UpdateDownloadController @Inject constructor(
     }
 }
 
-fun updateDirectory(context: Context): File =
+fun updateDownloadDirectory(context: Context): File =
     File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), "updates")
 
-fun updateApkFile(context: Context, update: AvailableUpdate): File {
+fun verifiedUpdateDirectory(context: Context): File = File(context.filesDir, "updates")
+
+fun updateDownloadApkFile(context: Context, update: AvailableUpdate): File =
+    File(updateDownloadDirectory(context), safeUpdateAssetName(update))
+
+fun verifiedUpdateApkFile(context: Context, update: AvailableUpdate): File =
+    File(verifiedUpdateDirectory(context), safeUpdateAssetName(update))
+
+private fun safeUpdateAssetName(update: AvailableUpdate): String {
     val safeAssetName = update.apkName
         ?.let(::File)
         ?.name
         ?.takeIf { it.endsWith(".apk", ignoreCase = true) }
         ?: "warpscout-android_${update.version.replace(Regex("[^0-9A-Za-z._-]"), "_")}.apk"
-    return File(updateDirectory(context), safeAssetName)
+    return safeAssetName
 }

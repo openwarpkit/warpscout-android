@@ -9,19 +9,21 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
-enum class UpdateInstallLaunch {
-    Installer,
-    PermissionSettings,
-    Failed
+sealed interface UpdateInstallLaunch {
+    data object Installer : UpdateInstallLaunch
+    data object PermissionSettings : UpdateInstallLaunch
+    data object Failed : UpdateInstallLaunch
+    data class VerificationFailed(val reason: String) : UpdateInstallLaunch
 }
 
 @Singleton
 class UpdateInstaller @Inject constructor(
-    @ApplicationContext private val applicationContext: Context
+    @ApplicationContext private val applicationContext: Context,
+    private val apkVerifier: UpdateApkVerifier
 ) {
-    fun launch(context: Context, update: AvailableUpdate): UpdateInstallLaunch {
-        val file = updateApkFile(applicationContext, update)
-        if (!file.isFile) return UpdateInstallLaunch.Failed
+    suspend fun launch(context: Context, update: AvailableUpdate): UpdateInstallLaunch {
+        val file = verifiedUpdateApkFile(applicationContext, update)
+        apkVerifier.verify(file, update)?.let { return UpdateInstallLaunch.VerificationFailed(it) }
         if (!context.packageManager.canRequestPackageInstalls()) {
             val settingsIntent = Intent(
                 Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,

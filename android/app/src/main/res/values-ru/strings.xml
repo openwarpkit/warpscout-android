@@ -221,6 +221,7 @@
     <string name="update_failure_automatic_download_unavailable">Для этого релиза нет совместимого APK для автоматической установки. Откройте релиз на GitHub и установите его вручную.</string>
     <string name="update_failure_update_download_failed">Загрузка была прервана или отклонена. Попробуйте снова либо откройте релиз на GitHub для ручной установки.</string>
     <string name="update_failure_update_file_invalid">Загруженный файл неполный. Попробуйте скачать его ещё раз.</string>
+    <string name="update_failure_update_digest_invalid">Загруженный файл не прошёл проверку целостности SHA-256. Откройте релиз на GitHub.</string>
     <string name="update_failure_update_package_invalid">Загруженный пакет не является Android-сборкой WarpScout. Откройте релиз на GitHub.</string>
     <string name="update_failure_update_version_invalid">Загруженный пакет не соответствует выбранной версии WarpScout. Откройте релиз на GitHub.</string>
     <string name="update_failure_update_signature_invalid">Подпись обновления не совпадает с установленным приложением. Установите обновление с GitHub или из исходного источника.</string>

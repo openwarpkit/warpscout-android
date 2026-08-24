@@ -221,10 +221,18 @@ class AppViewModel @Inject constructor(
         }
     }
 
-    fun installUpdate(context: Context): UpdateInstallLaunch {
+    fun installUpdate(context: Context) {
         val ready = updateDownloadState.value as? UpdateDownloadState.Ready
-            ?: return UpdateInstallLaunch.Failed
-        return updateInstaller.launch(context, ready.update)
+            ?: return
+        viewModelScope.launch {
+            when (val result = updateInstaller.launch(context, ready.update)) {
+                is UpdateInstallLaunch.VerificationFailed -> updateDownloadController.rejectReady(
+                    ready.update,
+                    result.reason
+                )
+                else -> Unit
+            }
+        }
     }
 
     fun shareReport(item: HistoryEntity) {

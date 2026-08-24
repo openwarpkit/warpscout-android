@@ -221,6 +221,7 @@
     <string name="update_failure_automatic_download_unavailable">This release has no compatible APK for automatic installation. Open the GitHub release to install it manually.</string>
     <string name="update_failure_update_download_failed">The download was interrupted or rejected. Try again, or open the GitHub release to install manually.</string>
     <string name="update_failure_update_file_invalid">The downloaded file is incomplete. Try downloading it again.</string>
+    <string name="update_failure_update_digest_invalid">The downloaded file failed its SHA-256 integrity check. Open the GitHub release instead.</string>
     <string name="update_failure_update_package_invalid">The downloaded package is not a WarpScout Android build. Open the GitHub release instead.</string>
     <string name="update_failure_update_version_invalid">The downloaded package is not the selected WarpScout version. Open the GitHub release instead.</string>
     <string name="update_failure_update_signature_invalid">The update signature doesn’t match the installed app. Install from the GitHub release or your original source.</string>

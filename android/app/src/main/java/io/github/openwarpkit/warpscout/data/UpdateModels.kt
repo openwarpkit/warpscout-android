@@ -5,7 +5,8 @@ data class AvailableUpdate(
     val releaseUrl: String,
     val apkUrl: String?,
     val apkName: String?,
-    val apkSize: Long
+    val apkSize: Long,
+    val apkSha256: String? = null
 )
 
 data class StoredUpdateState(
@@ -42,10 +43,11 @@ fun UpdateResult.toAvailableUpdate(): AvailableUpdate? {
     if (!updateAvailable) return null
     return AvailableUpdate(
         version = latestVersion,
-        releaseUrl = releaseUrl,
+        releaseUrl = trustedReleasePageUrl(releaseUrl),
         apkUrl = apkAsset?.downloadUrl,
         apkName = apkAsset?.name,
-        apkSize = apkAsset?.size ?: 0
+        apkSize = apkAsset?.size ?: 0,
+        apkSha256 = parseSha256Digest(apkAsset?.digest)
     )
 }
 

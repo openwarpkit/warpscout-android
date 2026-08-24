@@ -25,10 +25,11 @@ class UpdateStateStore @Inject constructor(
             availableUpdate = version?.let {
                 AvailableUpdate(
                     version = it,
-                    releaseUrl = preferences[RELEASE_URL].orEmpty(),
+                    releaseUrl = trustedReleasePageUrl(preferences[RELEASE_URL].orEmpty()),
                     apkUrl = preferences[APK_URL],
                     apkName = preferences[APK_NAME],
-                    apkSize = preferences[APK_SIZE] ?: 0
+                    apkSize = preferences[APK_SIZE] ?: 0,
+                    apkSha256 = preferences[APK_SHA256]
                 )
             },
             dismissedUntilMillis = preferences[DISMISSED_UNTIL] ?: 0,
@@ -42,13 +43,18 @@ class UpdateStateStore @Inject constructor(
 
     suspend fun saveAvailableUpdate(update: AvailableUpdate) {
         context.updateStateDataStore.edit { preferences ->
-            val releaseChanged = preferences[AVAILABLE_VERSION] != update.version
+            val artifactChanged = preferences[AVAILABLE_VERSION] != update.version ||
+                preferences[APK_URL] != update.apkUrl ||
+                preferences[APK_NAME] != update.apkName ||
+                preferences[APK_SIZE] != update.apkSize ||
+                preferences[APK_SHA256] != update.apkSha256
             preferences[AVAILABLE_VERSION] = update.version
             preferences[RELEASE_URL] = update.releaseUrl
             update.apkUrl?.let { preferences[APK_URL] = it } ?: preferences.remove(APK_URL)
             update.apkName?.let { preferences[APK_NAME] = it } ?: preferences.remove(APK_NAME)
             preferences[APK_SIZE] = update.apkSize
-            if (releaseChanged) clearDownload(preferences)
+            update.apkSha256?.let { preferences[APK_SHA256] = it } ?: preferences.remove(APK_SHA256)
+            if (artifactChanged) clearDownload(preferences)
         }
     }
 
@@ -101,6 +107,7 @@ class UpdateStateStore @Inject constructor(
         private val APK_URL = stringPreferencesKey("apk_url")
         private val APK_NAME = stringPreferencesKey("apk_name")
         private val APK_SIZE = longPreferencesKey("apk_size")
+        private val APK_SHA256 = stringPreferencesKey("apk_sha256")
         private val DISMISSED_UNTIL = longPreferencesKey("dismissed_until")
         private val DOWNLOAD_ID = longPreferencesKey("download_id")
         private val DOWNLOAD_READY = booleanPreferencesKey("download_ready")
