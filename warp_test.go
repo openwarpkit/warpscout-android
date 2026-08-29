@@ -331,8 +331,10 @@ func TestRenderMihomoConf(t *testing.T) {
 	for _, want := range []string{
 		"proxies:",
 		"- name: \"AWG WARP\"",
-		"server: 188.114.98.5",
-		"port: 2408",
+		"peers:",
+		"      - server: 188.114.98.5",
+		"        port: 2408",
+		"        persistent-keepalive: 25",
 		"type: wireguard",
 		"private-key: " + warpPrivateKey,
 		"public-key: " + warpPublicKey,
@@ -360,12 +362,12 @@ func TestRenderMihomoConf(t *testing.T) {
 		t.Fatal(err)
 	}
 	v6 := string(conf)
-	for _, want := range []string{"server: 2606:4700:d0::1", "ipv6: " + warpAddressV6, "allowed-ips: ['::/0']", "dns: [" + warpDNSv6 + "]"} {
+	for _, want := range []string{"server: 2606:4700:d0::1", "ipv6: " + warpAddressV6, "allowed-ips: ['::/0']", "dns: ['2606:4700:4700::1111', '2606:4700:4700::1001']"} {
 		if !strings.Contains(v6, want) {
 			t.Errorf("IPv6 mihomo config missing %q:\n%s", want, v6)
 		}
 	}
-	if strings.Contains(v6, "ip: ") || strings.Contains(v6, "1.1.1.1") {
+	if strings.Contains(v6, "  ip: ") || strings.Contains(v6, "1.1.1.1") {
 		t.Errorf("IPv6 config must not carry IPv4:\n%s", v6)
 	}
 
