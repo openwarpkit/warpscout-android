@@ -457,11 +457,12 @@ warpscout scan -p awg -conf warp.conf -dns 9.9.9.9,149.112.112.112
 warpscout scan -p awg -conf warp.conf -no-dns
 ```
 
-`-conf-type` picks the config format. The default `native` is the one above: a `.conf` for `wg`/`awg` and a `config.json` for `masque`, to be used with [usque](https://github.com/Diniboy1123/usque). `mihomo` writes a `proxies:` block for [mihomo](https://github.com/MetaCubeX/mihomo), which speaks both AmneziaWG and MASQUE.
+`-conf-type` picks the config format. The default `native` is the one above: a `.conf` for `wg`/`awg` and a `config.json` for `masque`, to be used with [usque](https://github.com/Diniboy1123/usque). `mihomo` writes a `proxies:` block for [mihomo](https://github.com/MetaCubeX/mihomo), which speaks both AmneziaWG and MASQUE. `mihomo-json` writes the same proxies as a JSON array.
 
 ```sh
 warpscout scan -p awg -conf warp.yaml -conf-type mihomo
 warpscout scan -p masque -conf warp.yaml -conf-type mihomo
+warpscout scan -p awg -conf - -conf-type mihomo-json | jq '.[0]'
 ```
 
 `-target` scans the addresses you name instead of the built-in pools. It takes single IP addresses, whole CIDR ranges, or any mix of the two, comma-separated:

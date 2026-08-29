@@ -123,7 +123,7 @@ var (
 		{"o", "output", "FILE", "full per-endpoint report file (default warpscout-report-<timestamp>.txt)"},
 		{"", "no-report", "", "skip the report file entirely (overrides -o)"},
 		{"", "conf", "FILE", "write a ready-to-import config for the best endpoint (\"-\" prints it instead)"},
-		{"", "conf-type", "KIND", "format of -conf: native (wg/awg .conf, usque config.json) or mihomo"},
+		{"", "conf-type", "KIND", "format of -conf: native (wg/awg .conf, usque config.json), mihomo or mihomo-json"},
 		{"", "table-off", "", "add \"Table = off\" to the generated config: bring the interface up without touching routes"},
 		{"", "mtu", "N", "set MTU in the generated config (default: leave the line out)"},
 		{"", "dns", "LIST", "DNS servers in the generated config: comma-separated (default: Cloudflare, following -6)"},
@@ -574,8 +574,8 @@ func validateConfType(o options) {
 		fmt.Fprintln(os.Stderr, "-conf-type needs -conf FILE")
 		os.Exit(2)
 	}
-	if o.tableOff && o.confType == confTypeMihomo {
-		fmt.Fprintln(os.Stderr, "-table-off does not apply to -conf-type mihomo: the client owns the routes")
+	if o.tableOff && isMihomo(o.confType) {
+		fmt.Fprintf(os.Stderr, "-table-off does not apply to -conf-type %s: the client owns the routes\n", o.confType)
 		os.Exit(2)
 	}
 }

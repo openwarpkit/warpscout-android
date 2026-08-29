@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"encoding/base64"
+	"encoding/json"
 	"encoding/pem"
 	"fmt"
 	"net"
@@ -140,7 +142,7 @@ func writeConf(o options, endpoint string, run protoRun) error {
 }
 
 func renderConfFor(o options, endpoint string, run protoRun) ([]byte, error) {
-	if o.confType == confTypeMihomo {
+	if isMihomo(o.confType) {
 		return renderMihomoConf(o, endpoint, run)
 	}
 	if run.isMASQUE() {
@@ -150,11 +152,16 @@ func renderConfFor(o options, endpoint string, run protoRun) ([]byte, error) {
 }
 
 const (
-	confTypeNative = "native"
-	confTypeMihomo = "mihomo"
+	confTypeNative     = "native"
+	confTypeMihomo     = "mihomo"
+	confTypeMihomoJSON = "mihomo-json"
 )
 
-var confTypes = []string{confTypeNative, confTypeMihomo}
+var confTypes = []string{confTypeNative, confTypeMihomo, confTypeMihomoJSON}
+
+func isMihomo(confType string) bool {
+	return confType == confTypeMihomo || confType == confTypeMihomoJSON
+}
 
 const (
 	warpDNSv4 = "1.1.1.1, 1.0.0.1"
@@ -187,8 +194,9 @@ func confDNSList(o options) []string {
 	return list
 }
 
-// A mihomo proxy is built as data rather than text: an ordered list keeps the
-// YAML fields in the order they are written here, which a map would not.
+// A mihomo proxy is built as data rather than text, because the same fields go
+// out as YAML and as JSON; an ordered list keeps the YAML fields in the order
+// they are written here, which a map would not.
 type kv struct {
 	k string
 	v any // string, quoted, int, bool, []string, []kv, [][]kv
@@ -232,6 +240,10 @@ func renderMihomoConf(o options, endpoint string, run protoRun) ([]byte, error) 
 	if err != nil {
 		return nil, err
 	}
+	if o.confType == confTypeMihomoJSON {
+		return mihomoJSON(proxies)
+	}
+
 	var b strings.Builder
 	fmt.Fprintf(&b, "proxies:\n")
 	for _, p := range proxies {
@@ -307,6 +319,77 @@ func yamlScalar(v any) string {
 // Go maps have no order, so the JSON is written from the same []kv the YAML is
 // rather than through map[string]any: the fields come out in the order
 // mihomoProxy builds them, the same one -conf-type mihomo prints.
+func mihomoJSON(proxies [][]kv) ([]byte, error) {
+	var b strings.Builder
+	b.WriteString("[\n  ")
+	for i, p := range proxies {
+		if i > 0 {
+			b.WriteString(",\n  ")
+		}
+		if err := writeJSONObject(&b, p, "  "); err != nil {
+			return nil, err
+		}
+	}
+	b.WriteString("\n]\n")
+	return []byte(b.String()), nil
+}
+
+func writeJSONObject(b *strings.Builder, node []kv, indent string) error {
+	b.WriteString("{\n")
+	for i, e := range node {
+		if i > 0 {
+			b.WriteString(",\n")
+		}
+		fmt.Fprintf(b, "%s  %q: ", indent, e.k)
+		if err := writeJSONValue(b, e.v, indent+"  "); err != nil {
+			return err
+		}
+	}
+	fmt.Fprintf(b, "\n%s}", indent)
+	return nil
+}
+
+func writeJSONValue(b *strings.Builder, v any, indent string) error {
+	switch t := v.(type) {
+	case []kv:
+		return writeJSONObject(b, t, indent)
+	case [][]kv:
+		b.WriteString("[\n")
+		for i, item := range t {
+			if i > 0 {
+				b.WriteString(",\n")
+			}
+			b.WriteString(indent + "  ")
+			if err := writeJSONObject(b, item, indent+"  "); err != nil {
+				return err
+			}
+		}
+		fmt.Fprintf(b, "\n%s]", indent)
+		return nil
+	case []string:
+		// Two resolvers or one allowed-ips entry: a line each reads worse than
+		// the list inline.
+		parts := make([]string, len(t))
+		for i, item := range t {
+			parts[i] = fmt.Sprintf("%q", item)
+		}
+		fmt.Fprintf(b, "[%s]", strings.Join(parts, ", "))
+		return nil
+	case quoted:
+		v = string(t)
+	}
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	// The awg i1 value is angle brackets all the way down, and the default
+	// encoder would turn every one of them into \u003c.
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(v); err != nil {
+		return err
+	}
+	b.WriteString(strings.TrimSuffix(buf.String(), "\n"))
+	return nil
+}
+
 // The inner WireGuard packet rides as UDP inside the outer tunnel, so it cannot
 // be left at the client's default: at full MTU the handshake still completes and
 // data dies silently (the same nestedOverhead tunnel.go subtracts).

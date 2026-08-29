@@ -459,11 +459,12 @@ warpscout scan -p awg -conf warp.conf -dns 9.9.9.9,149.112.112.112
 warpscout scan -p awg -conf warp.conf -no-dns
 ```
 
-`-conf-type` выбирает формат конфига. По умолчанию `native` - то, что описано выше: `.conf` для `wg`/`awg` и `config.json` для `masque` под использование с [usque](https://github.com/Diniboy1123/usque). `mihomo` пишет блок `proxies:` для [mihomo](https://github.com/MetaCubeX/mihomo), который умеет и AmneziaWG и MASQUE.
+`-conf-type` выбирает формат конфига. По умолчанию `native` - то, что описано выше: `.conf` для `wg`/`awg` и `config.json` для `masque` под использование с [usque](https://github.com/Diniboy1123/usque). `mihomo` пишет блок `proxies:` для [mihomo](https://github.com/MetaCubeX/mihomo), который умеет и AmneziaWG и MASQUE. `mihomo-json` пишет те же прокси JSON-массивом.
 
 ```sh
 warpscout scan -p awg -conf warp.yaml -conf-type mihomo
 warpscout scan -p masque -conf warp.yaml -conf-type mihomo
+warpscout scan -p awg -conf - -conf-type mihomo-json | jq '.[0]'
 ```
 
 `-target` сканирует указанные адреса вместо встроенных пулов. Принимает отдельные IP-адреса, целые диапазоны CIDR или любую их смесь через запятую:
