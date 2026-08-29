@@ -185,7 +185,10 @@ func runScanCmd(ctx context.Context, opts options) error {
 		return fmt.Errorf("%s", noEndpointMsg(opts))
 	}
 
-	if opts.speed && showsSpeed(opts) {
+	if (opts.speed || opts.bestBy == bestKeySpeed) && showsSpeed(opts) {
+		if !opts.speed {
+			fmt.Fprintln(os.Stderr, errPal.dim("\n-best-by speed ranks by throughput, so the speedtest phase runs even without -speed"))
+		}
 		runWithUI(opts, cancel, false, "", "q to skip the rest", func(emit emitter) {
 			measureSpeed(ctx, ph, time.Duration(opts.timeoutSec)*time.Second, emit)
 		})
@@ -234,6 +237,9 @@ func tablesFollow(opts options) bool {
 }
 
 func showsSpeed(opts options) bool {
+	if opts.bestBy == bestKeySpeed {
+		return true
+	}
 	if !opts.best && opts.conf != confStdout {
 		return true
 	}

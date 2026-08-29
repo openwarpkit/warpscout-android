@@ -120,6 +120,24 @@ func TestLessByLossRTT(t *testing.T) {
 	}
 }
 
+func TestLessByLossRTTSpeed(t *testing.T) {
+	bestBy = bestKeySpeed
+	defer func() { bestBy = bestKeyPing }()
+
+	slowPing := endpointResult{endpoint: "a", epPing: 200 * time.Millisecond, speed: 90}
+	fastPing := endpointResult{endpoint: "b", epPing: 20 * time.Millisecond, speed: 9}
+	if !lessByLossRTT(slowPing, fastPing) {
+		t.Error("higher speed did not outrank lower ping")
+	}
+	unmeasured := endpointResult{endpoint: "c", epPing: 10 * time.Millisecond}
+	if !lessByLossRTT(fastPing, unmeasured) {
+		t.Error("an unmeasured endpoint outranked a measured one")
+	}
+	if !lessByLossRTT(unmeasured, endpointResult{endpoint: "d", epPing: 90 * time.Millisecond}) {
+		t.Error("with no speed measured the order stopped following ping")
+	}
+}
+
 func TestPingDiagnostics(t *testing.T) {
 	cases := []struct {
 		name     string

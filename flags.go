@@ -28,6 +28,7 @@ type options struct {
 	output         string
 	conf           string
 	confType       string
+	bestBy         string
 	dns            string
 	proxy          string
 	relay          string
@@ -132,6 +133,7 @@ var (
 		{"", "exclude-node", "COLO", "drop endpoints landing on these edge nodes: comma-separated IATA codes"},
 		{"", "exclude-country", "ISO", "drop endpoints whose edge node sits in these countries: comma-separated ISO codes"},
 		{"", "best", "", "print just the best endpoint as ip:port on stdout (for scripts and pipes)"},
+		{"", "best-by", "ping|speed", "what makes an endpoint best, both for -best/-conf and for the order of every table: lowest ping (default) or highest download speed (runs the -speed phase, so it takes much longer)"},
 		{"", "plain", "", "force plain line output (no live TUI)"},
 		{"", "emoji", "", "prefix the colo region with a country flag emoji (rendering depends on the terminal)"},
 	}}
@@ -257,6 +259,7 @@ func setupScanFlags(fs *flag.FlagSet, o *options) {
 	fs.StringVar(&o.excludeNode, "exclude-node", "", "")
 	fs.StringVar(&o.excludeCountry, "exclude-country", "", "")
 	fs.BoolVar(&o.best, "best", false, "")
+	fs.StringVar(&o.bestBy, "best-by", bestKeyPing, "")
 	fs.StringVar(&o.conf, "conf", "", "")
 	fs.StringVar(&o.confType, "conf-type", confTypeNative, "")
 	fs.StringVar(&masqueSNI, "masque-sni", masqueDefaultSNI, "")
@@ -373,6 +376,7 @@ func applyCommonFlags(fs *flag.FlagSet, o *options) {
 	validateJunkParams()
 	validateMTU(*o)
 	validateConfType(*o)
+	validateBestBy(o)
 	rejectBestConfStdout(*o)
 	applyDNS(o)
 	applyTarget(o)
@@ -545,6 +549,17 @@ func rejectBestConfStdout(o options) {
 		fmt.Fprintln(os.Stderr, "-best and -conf - both write to stdout: use one or the other")
 		os.Exit(2)
 	}
+}
+
+func validateBestBy(o *options) {
+	if o.bestBy == "" {
+		return
+	}
+	if !slices.Contains(bestKeys, o.bestBy) {
+		fmt.Fprintf(os.Stderr, "-best-by %q must be one of %s\n", o.bestBy, strings.Join(bestKeys, ", "))
+		os.Exit(2)
+	}
+	bestBy = o.bestBy
 }
 
 func validateConfType(o options) {
