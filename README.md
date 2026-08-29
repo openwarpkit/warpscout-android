@@ -126,6 +126,12 @@ paru -S warpscout-bin  # the release binary
 
 [warpscout](https://aur.archlinux.org/packages/warpscout) - [warpscout-bin](https://aur.archlinux.org/packages/warpscout-bin)
 
+### Android (app)
+
+[openwarpkit/warpscout-android](https://github.com/openwarpkit/warpscout-android) is a native Android app built on warpscout by [OpenWarpKit](https://github.com/openwarpkit). Install the APK for your architecture from its [releases](https://github.com/openwarpkit/warpscout-android/releases).
+
+In Termux the one-command install above still works as usual.
+
 ### Download a binary
 
 Open the newest release on the [Releases page](https://github.com/vernette/warpscout/releases). There is one archive per OS, pick yours:

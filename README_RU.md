@@ -126,6 +126,12 @@ paru -S warpscout-bin  # готовый бинарник из релиза
 
 [warpscout](https://aur.archlinux.org/packages/warpscout) - [warpscout-bin](https://aur.archlinux.org/packages/warpscout-bin)
 
+### Android (приложение)
+
+[openwarpkit/warpscout-android](https://github.com/openwarpkit/warpscout-android) - нативное Android-приложение на базе warpscout от [OpenWarpKit](https://github.com/openwarpkit). APK под свою архитектуру берите на [странице релизов](https://github.com/openwarpkit/warpscout-android/releases).
+
+В Termux по-прежнему работает установка одной командой, как описано выше.
+
 ### Скачать бинарный файл
 
 Откройте самый свежий релиз на [странице релизов](https://github.com/vernette/warpscout/releases). Там лежат по одному архиву на ОС, выберите свой:
