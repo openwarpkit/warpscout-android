@@ -66,7 +66,7 @@ Russian providers are less predictable: one machine gives you `ARN`, another `HE
 
 A scan runs in two phases.
 
-**Phase 1 - which ports get through.** WARP endpoints listen on several UDP ports and stay silent in response to everything except a valid WireGuard handshake. A completed handshake is therefore the only reliable test of whether a port is reachable. WARPSCOUT takes a few addresses and finds out which ports the network lets out. The common ones are tried first, and only if none of them get through are the rest swept. Phase 2 then walks that list per endpoint and keeps the first port that answers, so different endpoints can end up on different ports - `-port N` pins one port for the whole run and skips this phase.
+**Phase 1 - which ports get through.** WARP endpoints listen on several UDP ports and stay silent in response to everything except a valid WireGuard handshake. A completed handshake is therefore the only reliable test of whether a port is reachable. WARPSCOUT takes a few addresses and finds out which ports the network lets out. The common ones are tried first, and only if none of them get through are the rest swept. Phase 2 then walks that list per endpoint and keeps the first port that answers, so different endpoints can end up on different ports - `-port N` pins one port for the whole run and skips this phase, and `-sweep-ports` turns every port of an endpoint into its own row instead of keeping the first that answers - the same address can, in theory, land on a different node, and at a different latency, depending on the port.
 
 **Phase 2 - where each endpoint comes out.** For every address a real tunnel is brought up, and `https://speed.cloudflare.com/meta` is requested through it. That one answer has everything needed:
 
@@ -310,12 +310,14 @@ Results are sorted by packet loss first, then by ping, so the top row is the bes
 | Flag                | What it does                                                                                                                                                                  |
 | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `-P, -tun-ping`     | Add the `TUN PING` and `LOSS` columns - RTT and packet loss measured inside the tunnel - and flag endpoints DPI tears down mid-stream. Off by default, since it takes longer. |
+| `-ping-target ADDR` | IP address or hostname the `TUN PING` and `LOSS` columns measure to (default `1.1.1.1`). A name is resolved inside the tunnel, and the run's summary prints what it resolved to. A name the tunnel cannot resolve shows as `(unresolved)` and scores 100% loss on that endpoint. Needs `-tun-ping`. |
 | `-tun-ping-count N` | How many echoes per endpoint (default 10, minimum 5). Implies `-tun-ping`. The longer the burst, the more reliably it catches tunnels torn down a second or two in.           |
 | `-speed`            | Add the `SPEED` column: after the scan, download-test every endpoint the tables pick, one at a time. Kinda slow, and it does not change the ranking - see below.              |
 | `-best-by ping\|speed` | What makes an endpoint the best one - lowest ping (default) or highest download speed. Runs the speedtest phase, so it takes much longer. See below.                        |
 | `-n, -sample N`     | Addresses to try per subnet (default 5).                                                                                                                                      |
 | `-f, -full`         | Try all 256 addresses of every subnet. Slow but thorough.                                                                                                                     |
 | `-port N`           | Probe only this port on every endpoint, instead of taking the first reachable one. Phase 1 is skipped.                                                                        |
+| `-sweep-ports open\|all` | Report every port of an endpoint as its own result instead of keeping the first that answers: `open` sweeps the ports phase 1 found, `all` sweeps every known WARP port and skips phase 1 (slow - meant for `-target`). |
 | `-jt N`             | How many tunnels to run at once (default 10).                                                                                                                                 |
 | `-t, -timeout N`    | Per-request timeout in seconds (default 2).                                                                                                                                   |
 | `-6, -ipv6`         | Use the IPv6 endpoint pools instead of IPv4.                                                                                                                                  |
@@ -330,7 +332,7 @@ There are two pings, and they sit in separate columns:
 | Column          | What it measures                                                                                                      | Shown            |
 | --------------- | --------------------------------------------------------------------------------------------------------------------- | ---------------- |
 | `ENDPOINT PING` | ICMP ping to the endpoint address itself, straight from this host - or from inside the outer tunnel under `-through`. | always           |
-| `TUN PING`      | Round-trip time to `1.1.1.1` **through** the tunnel, next to the `LOSS` measured in the same burst.                   | with `-tun-ping` |
+| `TUN PING`      | Round-trip time to `1.1.1.1` (or `-ping-target`) **through** the tunnel, next to the `LOSS` measured in the same burst.                   | with `-tun-ping` |
 
 `ENDPOINT PING` is the cheap one and says only how far away the address is; it has nothing to do with the tunnel.
 
