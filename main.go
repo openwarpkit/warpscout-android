@@ -466,6 +466,9 @@ func runWithUI(opts options, cancel context.CancelFunc, ping bool, header, quitH
 	workDone := make(chan struct{})
 	go func() {
 		work(p.Send)
+		// Only doneMsg quits the program, and an error path returns without one:
+		// without this the TUI spins on forever under the failure it just printed.
+		p.Send(doneMsg{})
 		close(workDone)
 	}()
 	if _, err := p.Run(); err != nil {
