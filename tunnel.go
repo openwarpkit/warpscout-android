@@ -117,8 +117,8 @@ type probeTarget struct {
 	port int // 0 means "try the tunnel's whole port list"
 }
 
-func probeTargets(run protoRun, ips []netip.Addr, ports []int) []probeTarget {
-	if !run.isMASQUE() {
+func probeTargets(run protoRun, perPort bool, ips []netip.Addr, ports []int) []probeTarget {
+	if !run.isMASQUE() && !perPort {
 		targets := make([]probeTarget, len(ips))
 		for i, ip := range ips {
 			targets[i] = probeTarget{ip: ip}

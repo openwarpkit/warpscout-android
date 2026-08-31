@@ -701,7 +701,7 @@ func TestProbeTargets(t *testing.T) {
 	ips := []netip.Addr{netip.MustParseAddr("162.159.198.1"), netip.MustParseAddr("162.159.198.2")}
 	ports := []int{443, 8443}
 
-	wg := probeTargets(protoRun{kindAWG, protoAWG}, ips, ports)
+	wg := probeTargets(protoRun{kindAWG, protoAWG}, false, ips, ports)
 	if len(wg) != len(ips) {
 		t.Fatalf("wg targets = %d, want one per address", len(wg))
 	}
@@ -711,8 +711,17 @@ func TestProbeTargets(t *testing.T) {
 		}
 	}
 
-	// Working ports differ per MASQUE address, so every pair must be its own row.
-	masque := probeTargets(protoRun{kindMASQUE, protoMASQUE}, ips, ports)
+	swept := probeTargets(protoRun{kindAWG, protoAWG}, true, ips, ports)
+	if len(swept) != len(ips)*len(ports) {
+		t.Fatalf("swept targets = %d, want %d", len(swept), len(ips)*len(ports))
+	}
+	for _, tg := range swept {
+		if tg.port == 0 {
+			t.Errorf("swept target %v pins no port", tg)
+		}
+	}
+
+	masque := probeTargets(protoRun{kindMASQUE, protoMASQUE}, false, ips, ports)
 	if len(masque) != len(ips)*len(ports) {
 		t.Fatalf("masque targets = %d, want %d", len(masque), len(ips)*len(ports))
 	}

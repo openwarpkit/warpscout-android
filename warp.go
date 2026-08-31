@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net/netip"
+	"slices"
 	"strings"
 )
 
@@ -88,6 +89,19 @@ var (
 	}
 	warpPorts = primaryWarpPorts
 )
+
+// -sweep-ports: "open" keeps phase 1 and sweeps the ports it found, "all" skips
+// phase 1 and sweeps every port warpscout knows about.
+const (
+	sweepOpen = "open"
+	sweepAll  = "all"
+)
+
+var sweepModes = []string{sweepOpen, sweepAll}
+
+func allWarpPorts() []int {
+	return append(slices.Clone(primaryWarpPorts), extendedWarpPorts...)
+}
 
 func base64ToHex(b64 string) (string, error) {
 	raw, err := base64.StdEncoding.DecodeString(b64)

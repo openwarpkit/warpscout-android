@@ -29,6 +29,7 @@ type options struct {
 	conf           string
 	confType       string
 	bestBy         string
+	sweepPorts     string
 	dns            string
 	proxy          string
 	relay          string
@@ -93,6 +94,7 @@ var (
 		{"n", "sample", "N", "addresses to sample per subnet"},
 		{"f", "full", "", "scan all 256 addresses per subnet (overrides -sample)"},
 		{"", "port", "N", "probe only this port on every endpoint instead of picking the first reachable one (skips phase 1)"},
+		{"", "sweep-ports", "open|all", fmt.Sprintf("report every port of an endpoint as its own result instead of keeping the first that answers: %s sweeps the ports phase 1 found, %s sweeps every known WARP port and skips phase 1 (slow - meant for -target)", sweepOpen, sweepAll)},
 	}, netSpecs...)}
 
 	nestGroup = flagGroup{"WARP-in-WARP", []flagSpec{
@@ -247,6 +249,7 @@ func setupScanFlags(fs *flag.FlagSet, o *options) {
 	intFlag(fs, &o.tunnelParallel, defaultTunnelJobs, "jt", "tunnel-jobs")
 	intFlagValidate(fs, &o.perSubnet, 5, "n", "sample", validateSample)
 	fs.IntVar(&o.port, "port", 0, "")
+	fs.StringVar(&o.sweepPorts, "sweep-ports", "", "")
 	strFlag(fs, &o.proto, protoWG, "p", "proto")
 	strFlag(fs, &o.output, "", "o", "output")
 	fs.BoolVar(&o.noReport, "no-report", false, "")
@@ -376,6 +379,7 @@ func applyCommonFlags(fs *flag.FlagSet, o *options) {
 	validateJunkParams()
 	validateMTU(*o)
 	validateConfType(*o)
+	validateSweepPorts(*o)
 	validateBestBy(o)
 	rejectBestConfStdout(*o)
 	applyDNS(o)
@@ -560,6 +564,27 @@ func validateBestBy(o *options) {
 		os.Exit(2)
 	}
 	bestBy = o.bestBy
+}
+
+// -port pins a single port, and MASQUE already reports one result per port, so
+// neither combination has anything left to sweep.
+func validateSweepPorts(o options) {
+	if o.sweepPorts == "" {
+		return
+	}
+	if !slices.Contains(sweepModes, o.sweepPorts) {
+		fmt.Fprintf(os.Stderr, "-sweep-ports %q must be one of %s\n", o.sweepPorts, strings.Join(sweepModes, ", "))
+		os.Exit(2)
+	}
+	if o.port != 0 {
+		fmt.Fprintln(os.Stderr, "-sweep-ports and -port contradict each other: -port pins a single port")
+		os.Exit(2)
+	}
+	if o.proto == protoMASQUE || o.proto == protoMASQUEH2 {
+		fmt.Fprintf(os.Stderr, "-sweep-ports does not apply to -proto %s: every MASQUE port is already its own result\n", o.proto)
+		os.Exit(2)
+	}
+	sweepingPorts = true
 }
 
 func validateConfType(o options) {
