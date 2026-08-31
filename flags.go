@@ -30,6 +30,7 @@ type options struct {
 	confType       string
 	bestBy         string
 	sweepPorts     string
+	pingTarget     string
 	dns            string
 	proxy          string
 	relay          string
@@ -89,6 +90,7 @@ var (
 	scanGroup = flagGroup{"Scan tuning", append([]flagSpec{
 		{"jt", "tunnel-jobs", "N", "phase 2 tunnel workers"},
 		{"P", "tun-ping", "", fmt.Sprintf("add the TUN PING/LOSS columns: RTT and packet loss measured inside the tunnel to %s, and flag endpoints DPI tears down mid-stream; off by default for speed", pingTarget)},
+		{"", "ping-target", "ADDR", fmt.Sprintf("IP address or hostname the TUN PING/LOSS columns measure to, resolved inside the tunnel (default %s); needs -tun-ping", pingTarget)},
 		{"", "tun-ping-count", "N", fmt.Sprintf("echoes per durability burst, %dms apart - a longer burst catches tunnels DPI kills late (default %d, implies -tun-ping)", pingInterval.Milliseconds(), durabilityPings)},
 		{"", "speed", "", "add the SPEED column: after the scan, download-test every endpoint the tables pick, one at a time (slow, and it does not change the ranking)"},
 		{"n", "sample", "N", "addresses to sample per subnet"},
@@ -250,6 +252,7 @@ func setupScanFlags(fs *flag.FlagSet, o *options) {
 	intFlagValidate(fs, &o.perSubnet, 5, "n", "sample", validateSample)
 	fs.IntVar(&o.port, "port", 0, "")
 	fs.StringVar(&o.sweepPorts, "sweep-ports", "", "")
+	fs.StringVar(&o.pingTarget, "ping-target", "", "")
 	strFlag(fs, &o.proto, protoWG, "p", "proto")
 	strFlag(fs, &o.output, "", "o", "output")
 	fs.BoolVar(&o.noReport, "no-report", false, "")
@@ -380,6 +383,7 @@ func applyCommonFlags(fs *flag.FlagSet, o *options) {
 	validateMTU(*o)
 	validateConfType(*o)
 	validateSweepPorts(*o)
+	applyPingTarget(*o)
 	validateBestBy(o)
 	rejectBestConfStdout(*o)
 	applyDNS(o)
@@ -585,6 +589,29 @@ func validateSweepPorts(o options) {
 		os.Exit(2)
 	}
 	sweepingPorts = true
+}
+
+// A hostname is allowed and resolved inside the tunnel (pingDst), never on the
+// host: a local resolver can answer with an address that only routes outside the
+// tunnel - on a fake-IP resolver every answer is one. A port or a URL is a
+// mistake, the burst speaks ICMP.
+func applyPingTarget(o options) {
+	if o.pingTarget == "" {
+		return
+	}
+	if !o.tunPingCheck && o.tunPingCount <= 0 {
+		fmt.Fprintln(os.Stderr, "-ping-target needs -tun-ping")
+		os.Exit(2)
+	}
+	if addr, err := netip.ParseAddr(o.pingTarget); err == nil {
+		pingTarget = addr.String()
+		return
+	}
+	if strings.ContainsAny(o.pingTarget, ":/ ") {
+		fmt.Fprintf(os.Stderr, "-ping-target %q must be an IP address or a hostname\n", o.pingTarget)
+		os.Exit(2)
+	}
+	pingTarget = o.pingTarget
 }
 
 func validateConfType(o options) {

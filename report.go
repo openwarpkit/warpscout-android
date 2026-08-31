@@ -317,7 +317,7 @@ func writeHeader(w io.Writer, working, probed int, ping, speed bool) {
 		fmt.Fprintln(w, "# ENDPOINT PING = ICMP ping to the endpoint address from this host, no tunnel involved")
 	}
 	if ping {
-		fmt.Fprintf(w, "# TUN PING / LOSS = RTT and packet loss measured inside the tunnel, to %s\n", pingTarget)
+		fmt.Fprintf(w, "# TUN PING / LOSS = RTT and packet loss measured inside the tunnel, to %s\n", pingTargetLabel())
 	}
 	if speed {
 		note := "the ordering does not depend on it"
@@ -389,6 +389,9 @@ func writeConsole(w io.Writer, ph phaseResult, r *lipgloss.Renderer, ping bool) 
 	writeJunkNote(w, st, ph.run)
 	fmt.Fprintf(w, "Nodes:     %s\n", st.accent.Render(uniqueSorted(working, func(r endpointResult) string { return r.exit.colo }, noFlag)))
 	fmt.Fprintf(w, "Seen as:   %s\n", st.accent.Render(uniqueSorted(working, func(r endpointResult) string { return r.exit.loc }, flagEmoji)))
+	if ping {
+		fmt.Fprintf(w, "Ping to:   %s\n", st.accent.Render(pingTargetLabel()))
+	}
 	fmt.Fprintf(w, "Working:   %s\n", st.ok.Render(strconv.Itoa(len(working)))+st.dim.Render(" / ")+strconv.Itoa(len(results))+" probed")
 	writeTornNote(w, st, len(torn))
 	writePicksTable(w, st, working, torn, ping)

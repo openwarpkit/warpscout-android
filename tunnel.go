@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -25,7 +26,7 @@ type ipStack struct {
 }
 
 func newIPStack(local []netip.Addr, mtu int) (tun.Device, *ipStack, error) {
-	tunDev, tnet, err := netstack.CreateNetTUN(local, []netip.Addr{netip.MustParseAddr(pingTarget)}, mtu)
+	tunDev, tnet, err := netstack.CreateNetTUN(local, []netip.Addr{netip.MustParseAddr(tunnelDNS)}, mtu)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -303,8 +304,54 @@ func preferV4(ips []string) string {
 	return ips[0]
 }
 
+// The netstack resolver is a separate knob from the ping destination: -ping-target
+// moves what TUN PING measures to, not where the tunnel resolves names.
+const tunnelDNS = "1.1.1.1"
+
+// pingTarget is set from -ping-target (flags.go) before any tunnel runs and may be
+// a hostname, which pingDst resolves inside the tunnel for the reason
+// resolveMetaAddr resolves metaHost: a host resolver can answer with an address
+// that only routes outside the tunnel.
+var (
+	pingTarget = tunnelDNS
+	pingAddr   atomic.Pointer[netip.Addr]
+)
+
+func pingDst(tnet *netstack.Net, timeout time.Duration) (netip.Addr, bool) {
+	if a := pingAddr.Load(); a != nil {
+		return *a, true
+	}
+	if a, err := netip.ParseAddr(pingTarget); err == nil {
+		pingAddr.CompareAndSwap(nil, &a)
+		return a, true
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	ips, err := tnet.LookupContextHost(ctx, pingTarget)
+	if err != nil || len(ips) == 0 {
+		return netip.Addr{}, false
+	}
+	a, err := netip.ParseAddr(preferV4(ips))
+	if err != nil {
+		return netip.Addr{}, false
+	}
+	pingAddr.CompareAndSwap(nil, &a)
+	return a, true
+}
+
+// The name plus what it resolved to: only the address explains the number next to
+// it, and an unresolved name explains a whole column of 100% loss.
+func pingTargetLabel() string {
+	if a := pingAddr.Load(); a != nil && a.String() != pingTarget {
+		return fmt.Sprintf("%s (%s)", pingTarget, a)
+	}
+	if _, err := netip.ParseAddr(pingTarget); err != nil {
+		return pingTarget + " (unresolved)"
+	}
+	return pingTarget
+}
+
 const (
-	pingTarget      = "1.1.1.1"
 	pingInterval    = 200 * time.Millisecond
 	durabilityPings = 10
 	// torn down = the tunnel passes data and is then cut mid-stream, never recovering,
@@ -322,10 +369,13 @@ const (
 // netstack (many userspace tunnels at once) still counts instead of scoring as
 // a loss.
 func (s *ipStack) tunnelPing(count int, timeout time.Duration) (time.Duration, float32, bool) {
-	dst := netip.MustParseAddr(pingTarget)
+	dst, ok := pingDst(s.tnet, timeout)
+	if !ok {
+		return 0, 1, false
+	}
 	pc, err := s.tnet.DialPingAddr(netip.Addr{}, dst)
 	if err != nil {
-		return 0, 0, false
+		return 0, 1, false
 	}
 	defer pc.Close()
 
