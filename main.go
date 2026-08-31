@@ -9,6 +9,7 @@ import (
 	"os"
 	"runtime/debug"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -463,17 +464,28 @@ func runWithUI(opts options, cancel context.CancelFunc, ping bool, header, quitH
 	p := tea.NewProgram(m, tea.WithOutput(os.Stderr))
 	defer enableVirtualTerminal()
 
+	// A terminal the TUI cannot drive is not a reason to fail the run.
+	// Fall back to the plain emitter and keep scanning.
+	var uiFailed atomic.Bool
+	emit := func(msg tea.Msg) {
+		if uiFailed.Load() {
+			plainEmit(msg)
+			return
+		}
+		p.Send(msg)
+	}
+
 	workDone := make(chan struct{})
 	go func() {
-		work(p.Send)
+		work(emit)
 		// Only doneMsg quits the program, and an error path returns without one:
 		// without this the TUI spins on forever under the failure it just printed.
-		p.Send(doneMsg{})
+		emit(doneMsg{})
 		close(workDone)
 	}()
 	if _, err := p.Run(); err != nil {
-		fmt.Fprintln(os.Stderr, errPal.fail(err.Error()))
-		return err
+		uiFailed.Store(true)
+		fmt.Fprintln(os.Stderr, errPal.fail("live output unavailable: "+err.Error()))
 	}
 	<-workDone
 	return nil
