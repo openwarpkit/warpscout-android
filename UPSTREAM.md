@@ -7,11 +7,11 @@
 
 ## Current base
 
-- Upstream tag: `v0.14.0`
-- Upstream commit: `2fe3507ffd3915f68efc65537d2adae0b5d1eff8`
+- Upstream tag: `v0.16.0`
+- Upstream commit: `db4ac9ebae8d942191b8e8351f2c3a37a375bd66`
 - Upstream branch: `master`
 
-The current base includes three upstream commits after tag `v0.14.0`.
+The current base matches upstream tag `v0.16.0`.
 
 ## Branch roles
 

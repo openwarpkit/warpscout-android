@@ -9,6 +9,7 @@ import (
 	"os"
 	"runtime/debug"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -460,14 +461,24 @@ func runWithUI(opts options, cancel context.CancelFunc, ping bool, header, quitH
 	p := tea.NewProgram(m, tea.WithOutput(os.Stderr))
 	defer enableVirtualTerminal()
 
+	var uiFailed atomic.Bool
+	emit := func(msg tea.Msg) {
+		if uiFailed.Load() {
+			plainEmit(msg)
+			return
+		}
+		p.Send(msg)
+	}
+
 	workDone := make(chan struct{})
 	go func() {
-		work(p.Send)
+		work(emit)
+		emit(doneMsg{})
 		close(workDone)
 	}()
 	if _, err := p.Run(); err != nil {
-		fmt.Fprintln(os.Stderr, errPal.fail(err.Error()))
-		return err
+		uiFailed.Store(true)
+		fmt.Fprintln(os.Stderr, errPal.fail("live output unavailable: "+err.Error()))
 	}
 	<-workDone
 	return nil

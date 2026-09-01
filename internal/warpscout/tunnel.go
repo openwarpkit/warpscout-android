@@ -304,20 +304,26 @@ func preferV4(ips []string) string {
 	return ips[0]
 }
 
+// The netstack resolver is a separate knob from the ping destination: -ping-target
+// moves what TUN PING measures to, not where the tunnel resolves names.
 const tunnelDNS = "1.1.1.1"
 
+// pingTarget is set from -ping-target (flags.go) before any tunnel runs and may be
+// a hostname, which pingDst resolves inside the tunnel for the reason
+// resolveMetaAddr resolves metaHost: a host resolver can answer with an address
+// that only routes outside the tunnel.
 var (
 	pingTarget = tunnelDNS
 	pingAddr   atomic.Pointer[netip.Addr]
 )
 
 func pingDst(tnet *netstack.Net, timeout time.Duration) (netip.Addr, bool) {
-	if addr := pingAddr.Load(); addr != nil {
-		return *addr, true
+	if a := pingAddr.Load(); a != nil {
+		return *a, true
 	}
-	if addr, err := netip.ParseAddr(pingTarget); err == nil {
-		pingAddr.CompareAndSwap(nil, &addr)
-		return addr, true
+	if a, err := netip.ParseAddr(pingTarget); err == nil {
+		pingAddr.CompareAndSwap(nil, &a)
+		return a, true
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -325,17 +331,19 @@ func pingDst(tnet *netstack.Net, timeout time.Duration) (netip.Addr, bool) {
 	if err != nil || len(ips) == 0 {
 		return netip.Addr{}, false
 	}
-	addr, err := netip.ParseAddr(preferV4(ips))
+	a, err := netip.ParseAddr(preferV4(ips))
 	if err != nil {
 		return netip.Addr{}, false
 	}
-	pingAddr.CompareAndSwap(nil, &addr)
-	return addr, true
+	pingAddr.CompareAndSwap(nil, &a)
+	return a, true
 }
 
+// The name plus what it resolved to: only the address explains the number next to
+// it, and an unresolved name explains a whole column of 100% loss.
 func pingTargetLabel() string {
-	if addr := pingAddr.Load(); addr != nil && addr.String() != pingTarget {
-		return fmt.Sprintf("%s (%s)", pingTarget, addr)
+	if a := pingAddr.Load(); a != nil && a.String() != pingTarget {
+		return fmt.Sprintf("%s (%s)", pingTarget, a)
 	}
 	if _, err := netip.ParseAddr(pingTarget); err != nil {
 		return pingTarget + " (unresolved)"

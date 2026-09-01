@@ -12,7 +12,7 @@ import (
 
 var (
 	coreVersion     = "dev"
-	upstreamVersion = "v0.14.0"
+	upstreamVersion = "v0.16.0"
 	engineMu        sync.RWMutex
 	engine          = core.New(warpscout.NewMobileBackend())
 )

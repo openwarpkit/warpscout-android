@@ -267,7 +267,7 @@ var bestBy = bestKeyPing
 // carry loss 0, so without -tun-ping this degrades to ping-only ordering.
 func lessByLossRTT(a, b endpointResult) bool {
 	if bestBy == bestKeySpeed && a.speed != b.speed {
-		return a.speed > b.speed
+		return a.speed > b.speed // unmeasured is 0, so it sinks
 	}
 	if a.loss != b.loss {
 		return a.loss < b.loss
@@ -565,20 +565,22 @@ func uniqueSorted(working []endpointResult, key func(endpointResult) string, fla
 	return strings.Join(vals, "  ")
 }
 
+// Set from -sweep-ports (flags.go), for the reason bestBy is a global: a run that
+// sweeps ports asks to compare them, so each ip:port keeps its own row instead of
+// collapsing into the fastest port of its node.
 var sweepingPorts bool
 
-func pickKey(result endpointResult) string {
+func pickKey(r endpointResult) string {
 	if sweepingPorts {
-		return result.endpoint
+		return r.endpoint
 	}
-	return exitColo(result.exit)
+	return exitColo(r.exit)
 }
 
 func nodePicks(working []endpointResult) []endpointResult {
 	byNode := make(map[string][]endpointResult)
 	for _, r := range working {
-		key := pickKey(r)
-		byNode[key] = append(byNode[key], r)
+		byNode[pickKey(r)] = append(byNode[pickKey(r)], r)
 	}
 	picks := make([]endpointResult, 0, len(byNode))
 	for _, group := range byNode {

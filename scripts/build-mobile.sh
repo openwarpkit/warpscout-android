@@ -11,6 +11,6 @@ gomobile init
 gomobile bind \
   -target=android/arm64,android/arm,android/amd64 \
   -androidapi=26 \
-  -ldflags="-X github.com/vernette/warpscout/mobileapi.coreVersion=${WARPSCOUT_CORE_VERSION:-dev} -X github.com/vernette/warpscout/mobileapi.upstreamVersion=${WARPSCOUT_UPSTREAM_TAG:-v0.14.0}" \
+  -ldflags="-X github.com/vernette/warpscout/mobileapi.coreVersion=${WARPSCOUT_CORE_VERSION:-dev} -X github.com/vernette/warpscout/mobileapi.upstreamVersion=${WARPSCOUT_UPSTREAM_TAG:-v0.16.0}" \
   -o "$OUT/warpscout.aar" \
   "$ROOT/mobileapi"

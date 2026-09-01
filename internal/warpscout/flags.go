@@ -96,7 +96,7 @@ var (
 		{"n", "sample", "N", "addresses to sample per subnet"},
 		{"f", "full", "", "scan all 256 addresses per subnet (overrides -sample)"},
 		{"", "port", "N", "probe only this port on every endpoint instead of picking the first reachable one (skips phase 1)"},
-		{"", "sweep-ports", "open|all", fmt.Sprintf("report every port of an endpoint as its own result instead of keeping the first that answers: %s sweeps the ports phase 1 found, %s sweeps every known WARP port and skips phase 1", sweepOpen, sweepAll)},
+		{"", "sweep-ports", "open|all", fmt.Sprintf("report every port of an endpoint as its own result instead of keeping the first that answers: %s sweeps the ports phase 1 found, %s sweeps every known WARP port and skips phase 1 (slow - meant for -target)", sweepOpen, sweepAll)},
 	}, netSpecs...)}
 
 	nestGroup = flagGroup{"WARP-in-WARP", []flagSpec{
@@ -127,7 +127,7 @@ var (
 		{"o", "output", "FILE", "full per-endpoint report file (default warpscout-report-<timestamp>.txt)"},
 		{"", "no-report", "", "skip the report file entirely (overrides -o)"},
 		{"", "conf", "FILE", "write a ready-to-import config for the best endpoint (\"-\" prints it instead)"},
-		{"", "conf-type", "KIND", "format of -conf: native (wg/awg .conf, usque config.json) or mihomo"},
+		{"", "conf-type", "KIND", "format of -conf: native (wg/awg .conf, usque config.json), mihomo or mihomo-json"},
 		{"", "table-off", "", "add \"Table = off\" to the generated config: bring the interface up without touching routes"},
 		{"", "mtu", "N", "set MTU in the generated config (default: leave the line out)"},
 		{"", "dns", "LIST", "DNS servers in the generated config: comma-separated (default: Cloudflare, following -6)"},
@@ -137,7 +137,7 @@ var (
 		{"", "exclude-node", "COLO", "drop endpoints landing on these edge nodes: comma-separated IATA codes"},
 		{"", "exclude-country", "ISO", "drop endpoints whose edge node sits in these countries: comma-separated ISO codes"},
 		{"", "best", "", "print just the best endpoint as ip:port on stdout (for scripts and pipes)"},
-		{"", "best-by", "ping|speed", "rank endpoints by lowest ping (default) or highest measured download speed"},
+		{"", "best-by", "ping|speed", "what makes an endpoint best, both for -best/-conf and for the order of every table: lowest ping (default) or highest download speed (runs the -speed phase, so it takes much longer)"},
 		{"", "plain", "", "force plain line output (no live TUI)"},
 		{"", "emoji", "", "prefix the colo region with a country flag emoji (rendering depends on the terminal)"},
 	}}
@@ -570,6 +570,8 @@ func validateBestBy(o *options) {
 	bestBy = o.bestBy
 }
 
+// -port pins a single port, and MASQUE already reports one result per port, so
+// neither combination has anything left to sweep.
 func validateSweepPorts(o options) {
 	if o.sweepPorts == "" {
 		return
@@ -589,6 +591,10 @@ func validateSweepPorts(o options) {
 	sweepingPorts = true
 }
 
+// A hostname is allowed and resolved inside the tunnel (pingDst), never on the
+// host: a local resolver can answer with an address that only routes outside the
+// tunnel - on a fake-IP resolver every answer is one. A port or a URL is a
+// mistake, the burst speaks ICMP.
 func applyPingTarget(o options) {
 	if o.pingTarget == "" {
 		return
@@ -620,8 +626,8 @@ func validateConfType(o options) {
 		fmt.Fprintln(os.Stderr, "-conf-type needs -conf FILE")
 		os.Exit(2)
 	}
-	if o.tableOff && o.confType == confTypeMihomo {
-		fmt.Fprintln(os.Stderr, "-table-off does not apply to -conf-type mihomo: the client owns the routes")
+	if o.tableOff && isMihomo(o.confType) {
+		fmt.Fprintf(os.Stderr, "-table-off does not apply to -conf-type %s: the client owns the routes\n", o.confType)
 		os.Exit(2)
 	}
 }

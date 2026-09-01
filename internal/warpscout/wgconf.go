@@ -1,11 +1,14 @@
 package warpscout
 
 import (
+	"bytes"
 	"encoding/base64"
+	"encoding/json"
 	"encoding/pem"
 	"fmt"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -139,7 +142,7 @@ func writeConf(o options, endpoint string, run protoRun) error {
 }
 
 func renderConfFor(o options, endpoint string, run protoRun) ([]byte, error) {
-	if o.confType == confTypeMihomo {
+	if isMihomo(o.confType) {
 		return renderMihomoConf(o, endpoint, run)
 	}
 	if run.isMASQUE() {
@@ -149,11 +152,16 @@ func renderConfFor(o options, endpoint string, run protoRun) ([]byte, error) {
 }
 
 const (
-	confTypeNative = "native"
-	confTypeMihomo = "mihomo"
+	confTypeNative     = "native"
+	confTypeMihomo     = "mihomo"
+	confTypeMihomoJSON = "mihomo-json"
 )
 
-var confTypes = []string{confTypeNative, confTypeMihomo}
+var confTypes = []string{confTypeNative, confTypeMihomo, confTypeMihomoJSON}
+
+func isMihomo(confType string) bool {
+	return confType == confTypeMihomo || confType == confTypeMihomoJSON
+}
 
 const (
 	warpDNSv4 = "1.1.1.1, 1.0.0.1"
@@ -173,12 +181,35 @@ func confDNS(o options) string {
 	return warpDNSv4
 }
 
-func mihomoAddr(b *strings.Builder, v4, v6 string, ipv6 bool) {
-	if ipv6 {
-		fmt.Fprintf(b, "  ipv6: %s\n", v6)
-		return
+// mihomo takes the resolvers as a list, the .conf as one line.
+func confDNSList(o options) []string {
+	dns := confDNS(o)
+	if dns == "" {
+		return nil
 	}
-	fmt.Fprintf(b, "  ip: %s\n", v4)
+	list := strings.Split(dns, ",")
+	for i := range list {
+		list[i] = strings.TrimSpace(list[i])
+	}
+	return list
+}
+
+// A mihomo proxy is built as data rather than text, because the same fields go
+// out as YAML and as JSON; an ordered list keeps the YAML fields in the order
+// they are written here, which a map would not.
+type kv struct {
+	k string
+	v any // string, quoted, int, bool, []string, []kv, [][]kv
+}
+
+// Proxy names are the only scalars YAML has to quote.
+type quoted string
+
+func mihomoAddr(v4, v6 string, ipv6 bool) kv {
+	if ipv6 {
+		return kv{"ipv6", v6}
+	}
+	return kv{"ip", v4}
 }
 
 // mihomo lists proxies by name, so several warpscout configs pasted into one
@@ -205,45 +236,158 @@ const (
 )
 
 func renderMihomoConf(o options, endpoint string, run protoRun) ([]byte, error) {
+	proxies, err := mihomoProxies(o, endpoint, run)
+	if err != nil {
+		return nil, err
+	}
+	if o.confType == confTypeMihomoJSON {
+		return mihomoJSON(proxies)
+	}
+
 	var b strings.Builder
 	fmt.Fprintf(&b, "proxies:\n")
+	for _, p := range proxies {
+		writeYAML(&b, p, "  ", "- ")
+	}
+	return []byte(b.String()), nil
+}
 
+func mihomoProxies(o options, endpoint string, run protoRun) ([][]kv, error) {
 	if outer == nil {
-		block, err := mihomoProxy(o, mihomoName(run), endpoint, run, o.mtu, confDNS(o))
+		p, err := mihomoProxy(o, mihomoName(run), endpoint, run, o.mtu, confDNSList(o))
 		if err != nil {
 			return nil, err
 		}
-		b.WriteString(indentBlock(block))
-		return []byte(b.String()), nil
+		return [][]kv{p}, nil
 	}
 
 	// mihomo expresses the chain itself: the outer tunnel is a proxy of its own
 	// and the inner one dials through it. The outer carries no DNS - it is only
 	// the carrier, and the resolvers belong at the end of the chain.
 	outerName := mihomoName(outer.run) + mihomoOuterSuffix
-	var block string
+	var op []kv
 	err := withOuterKeys(func() error {
 		var err error
-		block, err = mihomoProxy(o, outerName, outer.endpoint, outer.run, o.mtu, "")
+		op, err = mihomoProxy(o, outerName, outer.endpoint, outer.run, o.mtu, nil)
 		return err
 	})
 	if err != nil {
 		return nil, err
 	}
-	b.WriteString(indentBlock(block))
 
-	block, err = mihomoProxy(o, mihomoName(run)+mihomoChainSuffix, endpoint, run, nestedMTU(o.mtu), confDNS(o))
+	inner, err := mihomoProxy(o, mihomoName(run)+mihomoChainSuffix, endpoint, run, nestedMTU(o.mtu), confDNSList(o))
 	if err != nil {
 		return nil, err
 	}
-	b.WriteString(indentBlock(block + fmt.Sprintf("  dialer-proxy: \"%s\"\n", outerName)))
+	return [][]kv{op, append(inner, kv{"dialer-proxy", quoted(outerName)})}, nil
+}
+
+// The list-of-maps case wants "- " on the first key of each item and blanks
+// under it, which is why the lead is separate from the indent.
+func writeYAML(b *strings.Builder, node []kv, indent, lead string) {
+	pad := indent + strings.Repeat(" ", len(lead))
+	for i, e := range node {
+		prefix := pad
+		if i == 0 {
+			prefix = indent + lead
+		}
+		switch v := e.v.(type) {
+		case []kv:
+			fmt.Fprintf(b, "%s%s:\n", prefix, e.k)
+			writeYAML(b, v, pad+"  ", "")
+		case [][]kv:
+			fmt.Fprintf(b, "%s%s:\n", prefix, e.k)
+			for _, item := range v {
+				writeYAML(b, item, pad+"  ", "- ")
+			}
+		default:
+			fmt.Fprintf(b, "%s%s: %s\n", prefix, e.k, yamlScalar(e.v))
+		}
+	}
+}
+
+func yamlScalar(v any) string {
+	switch t := v.(type) {
+	case quoted:
+		return fmt.Sprintf("%q", string(t))
+	case []string:
+		return "['" + strings.Join(t, "', '") + "']"
+	}
+	return fmt.Sprint(v)
+}
+
+// Go maps have no order, so the JSON is written from the same []kv the YAML is
+// rather than through map[string]any: the fields come out in the order
+// mihomoProxy builds them, the same one -conf-type mihomo prints.
+func mihomoJSON(proxies [][]kv) ([]byte, error) {
+	var b strings.Builder
+	b.WriteString("[\n  ")
+	for i, p := range proxies {
+		if i > 0 {
+			b.WriteString(",\n  ")
+		}
+		if err := writeJSONObject(&b, p, "  "); err != nil {
+			return nil, err
+		}
+	}
+	b.WriteString("\n]\n")
 	return []byte(b.String()), nil
 }
 
-// The proxy writers lay a block out at column 0; the sequence itself sits under
-// proxies:, so every line of it moves right by one level.
-func indentBlock(s string) string {
-	return "  " + strings.ReplaceAll(strings.TrimSuffix(s, "\n"), "\n", "\n  ") + "\n"
+func writeJSONObject(b *strings.Builder, node []kv, indent string) error {
+	b.WriteString("{\n")
+	for i, e := range node {
+		if i > 0 {
+			b.WriteString(",\n")
+		}
+		fmt.Fprintf(b, "%s  %q: ", indent, e.k)
+		if err := writeJSONValue(b, e.v, indent+"  "); err != nil {
+			return err
+		}
+	}
+	fmt.Fprintf(b, "\n%s}", indent)
+	return nil
+}
+
+func writeJSONValue(b *strings.Builder, v any, indent string) error {
+	switch t := v.(type) {
+	case []kv:
+		return writeJSONObject(b, t, indent)
+	case [][]kv:
+		b.WriteString("[\n")
+		for i, item := range t {
+			if i > 0 {
+				b.WriteString(",\n")
+			}
+			b.WriteString(indent + "  ")
+			if err := writeJSONObject(b, item, indent+"  "); err != nil {
+				return err
+			}
+		}
+		fmt.Fprintf(b, "\n%s]", indent)
+		return nil
+	case []string:
+		// Two resolvers or one allowed-ips entry: a line each reads worse than
+		// the list inline.
+		parts := make([]string, len(t))
+		for i, item := range t {
+			parts[i] = fmt.Sprintf("%q", item)
+		}
+		fmt.Fprintf(b, "[%s]", strings.Join(parts, ", "))
+		return nil
+	case quoted:
+		v = string(t)
+	}
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	// The awg i1 value is angle brackets all the way down, and the default
+	// encoder would turn every one of them into \u003c.
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(v); err != nil {
+		return err
+	}
+	b.WriteString(strings.TrimSuffix(buf.String(), "\n"))
+	return nil
 }
 
 // The inner WireGuard packet rides as UDP inside the outer tunnel, so it cannot
@@ -256,85 +400,81 @@ func nestedMTU(mtu int) int {
 	return mtu - nestedOverhead
 }
 
-func mihomoProxy(o options, name, endpoint string, run protoRun, mtu int, dns string) (string, error) {
-	host, port, err := net.SplitHostPort(endpoint)
+func mihomoProxy(o options, name, endpoint string, run protoRun, mtu int, dns []string) ([]kv, error) {
+	host, portStr, err := net.SplitHostPort(endpoint)
 	if err != nil {
-		return "", fmt.Errorf("endpoint %q: %w", endpoint, err)
+		return nil, fmt.Errorf("endpoint %q: %w", endpoint, err)
+	}
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		return nil, fmt.Errorf("endpoint %q: %w", endpoint, err)
 	}
 
-	b := &strings.Builder{}
-	fmt.Fprintf(b, "- name: \"%s\"\n", name)
-	if err := mihomoPeer(b, run, o.ipv6, host, port); err != nil {
-		return "", err
+	p, err := mihomoPeer(run, o.ipv6, host, port)
+	if err != nil {
+		return nil, err
 	}
+	p = append([]kv{{"name", quoted(name)}}, p...)
 	if mtu > 0 {
-		fmt.Fprintf(b, "  mtu: %d\n", mtu)
+		p = append(p, kv{"mtu", mtu})
 	}
-	fmt.Fprintf(b, "  udp: true\n")
-	if dns != "" {
-		fmt.Fprintf(b, "  remote-dns-resolve: true\n")
-		fmt.Fprintf(b, "  dns: [%s]\n", mihomoDNS(dns))
+	p = append(p, kv{"udp", true})
+	if len(dns) > 0 {
+		p = append(p, kv{"remote-dns-resolve", true}, kv{"dns", dns})
 	}
-	return b.String(), nil
+	return p, nil
 }
 
-func mihomoDNS(dns string) string {
-	items := strings.Split(dns, ",")
-	for index, item := range items {
-		items[index] = fmt.Sprintf("'%s'", strings.TrimSpace(item))
-	}
-	return strings.Join(items, ", ")
-}
-
-func mihomoPeer(b *strings.Builder, run protoRun, ipv6 bool, host, port string) error {
+func mihomoPeer(run protoRun, ipv6 bool, host string, port int) ([]kv, error) {
 	if run.isMASQUE() {
 		if masqueAcct == nil {
-			return fmt.Errorf("no MASQUE device in the account file")
+			return nil, fmt.Errorf("no MASQUE device in the account file")
 		}
 		pub, err := pemBody(masqueAcct.PeerPublicKey)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		fmt.Fprintf(b, "  type: masque\n")
-		fmt.Fprintf(b, "  server: %s\n", host)
-		fmt.Fprintf(b, "  port: %s\n", port)
+		p := []kv{{"type", "masque"}, {"server", host}, {"port", port}}
 		// mihomo's default is HTTP/3; the TCP transport is the same type with a
 		// network selector rather than a type of its own.
 		if run.isH2() {
-			fmt.Fprintf(b, "  network: h2\n")
+			p = append(p, kv{"network", "h2"})
 		}
-		fmt.Fprintf(b, "  sni: %s\n", masqueSNI)
-		fmt.Fprintf(b, "  private-key: %s\n", masqueAcct.PrivateKey)
-		fmt.Fprintf(b, "  public-key: %s\n", pub)
-		mihomoAddr(b, masqueAcct.IPv4, masqueAcct.IPv6, ipv6)
-		return nil
+		return append(p,
+			kv{"sni", masqueSNI},
+			kv{"private-key", masqueAcct.PrivateKey},
+			kv{"public-key", pub},
+			mihomoAddr(masqueAcct.IPv4, masqueAcct.IPv6, ipv6),
+		), nil
 	}
 
-	fmt.Fprintf(b, "  type: wireguard\n")
-	fmt.Fprintf(b, "  private-key: %s\n", warpPrivateKey)
-	mihomoAddr(b, warpAddress, warpAddressV6, ipv6)
-	fmt.Fprintf(b, "  peers:\n")
-	fmt.Fprintf(b, "    - server: %s\n", host)
-	fmt.Fprintf(b, "      port: %s\n", port)
-	fmt.Fprintf(b, "      public-key: %s\n", warpPublicKey)
-	fmt.Fprintf(b, "      allowed-ips: ['%s']\n", allowedIPs(ipv6))
-	fmt.Fprintf(b, "      persistent-keepalive: %d\n", keepalive)
-	if !run.isAWG() {
-		return nil
+	// The single-peer fields mihomo still accepts at the top level are its legacy
+	// syntax; a peers list is the current one.
+	peer := []kv{
+		{"server", host},
+		{"port", port},
+		{"public-key", warpPublicKey},
+		{"allowed-ips", []string{allowedIPs(ipv6)}},
+		{"persistent-keepalive", keepalive},
 	}
-	fmt.Fprintf(b, "  amnezia-wg-option:\n")
-	fmt.Fprintf(b, "    jc: %d\n", awgJc)
-	fmt.Fprintf(b, "    jmin: %d\n", awgJmin)
-	fmt.Fprintf(b, "    jmax: %d\n", awgJmax)
-	fmt.Fprintf(b, "    s1: 0\n")
-	fmt.Fprintf(b, "    s2: 0\n")
+	p := []kv{
+		{"type", "wireguard"},
+		{"private-key", warpPrivateKey},
+		mihomoAddr(warpAddress, warpAddressV6, ipv6),
+		{"peers", [][]kv{peer}},
+	}
+	if !run.isAWG() {
+		return p, nil
+	}
+
+	awg := []kv{{"jc", awgJc}, {"jmin", awgJmin}, {"jmax", awgJmax}, {"s1", 0}, {"s2", 0}}
 	for i, h := range []int{1, 2, 3, 4} {
-		fmt.Fprintf(b, "    h%d: %d\n", i+1, h)
+		awg = append(awg, kv{fmt.Sprintf("h%d", i+1), h})
 	}
 	if awgI1 != "" {
-		fmt.Fprintf(b, "    i1: %s\n", awgI1)
+		awg = append(awg, kv{"i1", awgI1})
 	}
-	return nil
+	return append(p, kv{"amnezia-wg-option", awg}), nil
 }
 
 func pemBody(key string) (string, error) {

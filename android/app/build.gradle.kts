@@ -15,8 +15,8 @@ val releaseKeyPassword = providers.environmentVariable("ANDROID_KEY_PASSWORD")
 val debugKeystore = providers.environmentVariable("WARPSCOUT_DEBUG_KEYSTORE")
 val versionNameValue = providers.environmentVariable("WARPSCOUT_VERSION_NAME").orElse("0.1.0-dev")
 val versionCodeValue = providers.environmentVariable("WARPSCOUT_VERSION_CODE").map(String::toInt).orElse(1)
-val upstreamTag = providers.environmentVariable("WARPSCOUT_UPSTREAM_TAG").orElse("v0.14.0")
-val upstreamCommit = providers.environmentVariable("WARPSCOUT_UPSTREAM_COMMIT").orElse("2fe3507")
+val upstreamTag = providers.environmentVariable("WARPSCOUT_UPSTREAM_TAG").orElse("v0.16.0")
+val upstreamCommit = providers.environmentVariable("WARPSCOUT_UPSTREAM_COMMIT").orElse("db4ac9e")
 
 android {
     namespace = "io.github.openwarpkit.warpscout"

@@ -90,6 +90,8 @@ var (
 	warpPorts = primaryWarpPorts
 )
 
+// -sweep-ports: "open" keeps phase 1 and sweeps the ports it found, "all" skips
+// phase 1 and sweeps every port warpscout knows about.
 const (
 	sweepOpen = "open"
 	sweepAll  = "all"
