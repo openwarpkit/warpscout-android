@@ -168,35 +168,50 @@ func (b *MobileBackend) FindJunk(ctx context.Context, input core.Account, scan c
 			return core.JunkProfile{}, failure
 		}
 		genJunkParams()
-		if scan.AWGI1 != "" {
-			awgI1 = scan.AWGI1
-		}
-		current := core.JunkAttempt{
-			JunkCount: awgJc,
-			JunkMin:   awgJmin,
-			JunkMax:   awgJmax,
-			I1:        awgI1,
-		}
-		emitProgress(sink, core.OperationFindJunk, "junk", attempt-1, 0, fmt.Sprintf("Attempt %d", attempt))
-		ph, scanErr := runScan(ctx, opts, run, expandPools(opts.perSubnet), timeout, progress.Emit)
-		if ctx.Err() != nil {
+		candidates := findJunkI1Candidates(scan.AWGI1)
+		for i1Index, i1 := range candidates {
+			awgI1, genI1Label = i1.chain, i1.label
+			current := core.JunkAttempt{
+				JunkCount: awgJc,
+				JunkMin:   awgJmin,
+				JunkMax:   awgJmax,
+				I1:        awgI1,
+			}
+			emitProgress(
+				sink,
+				core.OperationFindJunk,
+				"junk",
+				0,
+				0,
+				fmt.Sprintf("Attempt %d · I1 %d/%d", attempt, i1Index+1, len(candidates)),
+			)
+			ph, scanErr := runScan(ctx, opts, run, expandPools(opts.perSubnet), timeout, progress.Emit)
+			if ctx.Err() != nil {
+				tested = append(tested, current)
+				if best.total > 0 {
+					return junkProfile(best, tested), nil
+				}
+				failure := operationFailure(ctx, "canceled", ctx.Err(), false)
+				if typed, ok := failure.(*core.CoreError); ok {
+					typed.Payload = core.JunkProfile{Tested: tested}
+				}
+				return core.JunkProfile{}, failure
+			}
+			if scanErr != nil {
+				tested = append(tested, current)
+				continue
+			}
+			candidate := scoreJunk(ph)
+			current.Working = candidate.working
+			current.Total = candidate.total
+			current.Completed = true
 			tested = append(tested, current)
-			continue
-		}
-		if scanErr != nil {
-			tested = append(tested, current)
-			continue
-		}
-		candidate := scoreJunk(ph)
-		current.Working = candidate.working
-		current.Total = candidate.total
-		current.Completed = true
-		tested = append(tested, current)
-		if candidate.working > best.working {
-			best = candidate
-		}
-		if candidate.meets(opts.threshold) {
-			return junkProfile(candidate, tested), nil
+			if candidate.working > best.working {
+				best = candidate
+			}
+			if candidate.meets(opts.threshold) {
+				return junkProfile(candidate, tested), nil
+			}
 		}
 	}
 }

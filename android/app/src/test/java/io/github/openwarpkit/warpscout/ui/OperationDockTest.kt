@@ -30,6 +30,18 @@ class OperationDockTest {
     fun `scan keeps its dock after completion`() {
         val state = OperationState(operation = "scan", running = false)
 
-        assertEquals(OperationDockKind.Scan, operationDockKind(state))
+        assertEquals(OperationDockKind.Progress, operationDockKind(state))
+    }
+
+    @Test
+    fun `discovery operations use the progress dock`() {
+        assertEquals(
+            OperationDockKind.Progress,
+            operationDockKind(OperationState(operation = "find-junk", running = true))
+        )
+        assertEquals(
+            OperationDockKind.Progress,
+            operationDockKind(OperationState(operation = "find-sni", running = false))
+        )
     }
 }

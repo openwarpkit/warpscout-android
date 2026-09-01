@@ -23,6 +23,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
@@ -39,6 +40,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -74,6 +76,8 @@ fun ScanScreen(viewModel: AppViewModel) {
     var junkMin by rememberSaveable { mutableStateOf("0") }
     var junkMax by rememberSaveable { mutableStateOf("0") }
     var i1 by rememberSaveable { mutableStateOf("") }
+    var i1Domain by rememberSaveable { mutableStateOf("") }
+    var i1GenerationFailed by rememberSaveable { mutableStateOf(false) }
     var masqueSni by rememberSaveable { mutableStateOf("") }
     var masqueAttempts by rememberSaveable { mutableStateOf("3") }
     var nodes by rememberSaveable { mutableStateOf("") }
@@ -339,7 +343,51 @@ fun ScanScreen(viewModel: AppViewModel) {
                             NumberField(junkMin, { junkMin = it }, "Jmin", Modifier.weight(1f))
                             NumberField(junkMax, { junkMax = it }, "Jmax", Modifier.weight(1f))
                         }
-                        OutlinedTextField(value = i1, onValueChange = { i1 = it }, label = { Text("I1") }, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(
+                            value = i1,
+                            onValueChange = { i1 = it },
+                            label = { Text("I1") },
+                            textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                            minLines = 2,
+                            maxLines = 4,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value = i1Domain,
+                            onValueChange = {
+                                i1Domain = it
+                                i1GenerationFailed = false
+                            },
+                            label = { Text(stringResource(R.string.i1_domain)) },
+                            supportingText = {
+                                Text(
+                                    stringResource(
+                                        if (i1GenerationFailed) {
+                                            R.string.i1_generation_failed
+                                        } else {
+                                            R.string.i1_domain_description
+                                        }
+                                    )
+                                )
+                            },
+                            isError = i1GenerationFailed,
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedButton(
+                            enabled = i1Domain.isNotBlank(),
+                            onClick = {
+                                viewModel.generateI1(i1Domain.trim())
+                                    .onSuccess {
+                                        i1 = it
+                                        i1GenerationFailed = false
+                                    }
+                                    .onFailure { i1GenerationFailed = true }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(stringResource(R.string.generate_i1))
+                        }
                     }
                     if (protocol.startsWith("masque")) {
                         OutlinedTextField(

@@ -160,6 +160,10 @@ func UpstreamVersion() string {
 	return upstreamVersion
 }
 
+func GenerateI1(host string) (string, error) {
+	return warpscout.GenerateI1(host)
+}
+
 func invalidPayload(listener Listener, err error) error {
 	emitError(listener, "invalid_payload", "operation payload is invalid", false)
 	return err

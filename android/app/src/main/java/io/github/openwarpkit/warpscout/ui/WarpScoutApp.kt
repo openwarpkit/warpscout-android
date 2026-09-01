@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Build
 import androidx.compose.material.icons.outlined.History
@@ -72,14 +73,16 @@ private val destinations = listOf(
     Destination("settings", R.string.nav_settings, Icons.Outlined.Settings)
 )
 
+private val PhoneNavigationIconSize = 30.dp
+
 internal enum class OperationDockKind {
     None,
-    Scan,
+    Progress,
     Socks
 }
 
 internal fun operationDockKind(state: OperationState): OperationDockKind = when {
-    state.operation == "scan" -> OperationDockKind.Scan
+    state.operation in setOf("scan", "find-junk", "find-sni") -> OperationDockKind.Progress
     state.operation == "socks" && state.running && state.localPort != null -> OperationDockKind.Socks
     else -> OperationDockKind.None
 }
@@ -204,8 +207,13 @@ private fun MainNavigation(viewModel: AppViewModel) {
                             NavigationBarItem(
                                 selected = selected,
                                 onClick = { navController.navigatePrimary(destination.route) },
-                                icon = { Icon(destination.icon, contentDescription = null) },
-                                label = { androidx.compose.material3.Text(stringResource(destination.label)) }
+                                icon = {
+                                    Icon(
+                                        destination.icon,
+                                        contentDescription = stringResource(destination.label),
+                                        modifier = Modifier.size(PhoneNavigationIconSize)
+                                    )
+                                }
                             )
                         }
                     }
@@ -245,7 +253,7 @@ private fun OperationDock(
     modifier: Modifier = Modifier
 ) {
     when (operationDockKind(state)) {
-        OperationDockKind.Scan -> ScanOperationDock(
+        OperationDockKind.Progress -> ScanOperationDock(
             state = state,
             onStop = onStop,
             onDismiss = onDismiss,

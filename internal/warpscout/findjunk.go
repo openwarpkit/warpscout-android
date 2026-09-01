@@ -48,38 +48,51 @@ func runFindJunk(ctx context.Context, opts options, run protoRun, timeout time.D
 	var best junkCandidate
 	for attempt := 1; ctx.Err() == nil; attempt++ {
 		genJunkParams()
+		candidates := findJunkI1Candidates("")
 		if opts.genI1 != "" {
-			if err := regenI1(opts); err != nil {
+			chain, label, err := genI1(opts.genI1, opts.i1Host)
+			if err != nil {
 				return err
 			}
+			candidates = []i1Candidate{{chain: chain, label: label}}
 		}
-		header := fmt.Sprintf("Attempt %d: jc=%d jmin=%d jmax=%d, %s", attempt, awgJc, awgJmin, awgJmax, i1Note())
-		if usePlainOutput(opts) {
-			fmt.Fprintln(os.Stderr, errPal.dim(header))
-		}
+		for i1Index, candidate := range candidates {
+			awgI1, genI1Label = candidate.chain, candidate.label
+			attemptLabel := fmt.Sprintf("Attempt %d.%d", attempt, i1Index+1)
+			header := fmt.Sprintf(
+				"%s: jc=%d jmin=%d jmax=%d, I1 %d/%d, %s",
+				attemptLabel, awgJc, awgJmin, awgJmax, i1Index+1, len(candidates), i1Note(),
+			)
+			if usePlainOutput(opts) {
+				fmt.Fprintln(os.Stderr, errPal.dim(header))
+			}
 
-		ph, err := runScanUI(ctx, cancel, opts, run, expandPools(opts.perSubnet), timeout, header, findJunkQuitHint)
+			ph, err := runScanUI(ctx, cancel, opts, run, expandPools(opts.perSubnet), timeout, header, findJunkQuitHint)
+			if ctx.Err() != nil {
+				break
+			}
+			if err != nil {
+				fmt.Fprintln(os.Stderr, errPal.fail(fmt.Sprintf("%s: %v", attemptLabel, err)))
+				continue
+			}
+
+			c := scoreJunk(ph)
+			summary := attemptLabel + ": " + c.String()
+			if c.meets(opts.threshold) {
+				fmt.Fprintln(os.Stderr, errPal.ok(summary))
+			} else {
+				fmt.Fprintln(os.Stderr, errPal.dim(summary))
+			}
+			fmt.Fprintln(os.Stderr)
+			if c.working > best.working {
+				best = c
+			}
+			if c.meets(opts.threshold) {
+				return reportJunk(c, true)
+			}
+		}
 		if ctx.Err() != nil {
 			break
-		}
-		if err != nil {
-			fmt.Fprintln(os.Stderr, errPal.fail(fmt.Sprintf("Attempt %d: %v", attempt, err)))
-			continue
-		}
-
-		c := scoreJunk(ph)
-		summary := "Attempt " + fmt.Sprint(attempt) + ": " + c.String()
-		if c.meets(opts.threshold) {
-			fmt.Fprintln(os.Stderr, errPal.ok(summary))
-		} else {
-			fmt.Fprintln(os.Stderr, errPal.dim(summary))
-		}
-		fmt.Fprintln(os.Stderr)
-		if c.working > best.working {
-			best = c
-		}
-		if c.meets(opts.threshold) {
-			return reportJunk(c, true)
 		}
 	}
 

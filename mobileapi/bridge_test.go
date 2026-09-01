@@ -2,10 +2,21 @@ package mobileapi
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/vernette/warpscout/core"
 )
+
+func TestGenerateI1(t *testing.T) {
+	value, err := GenerateI1("www.example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(value, "<b 0x") || !strings.HasSuffix(value, ">") {
+		t.Fatalf("GenerateI1() = %q", value)
+	}
+}
 
 type captureListener struct {
 	value string

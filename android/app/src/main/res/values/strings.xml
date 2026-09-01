@@ -57,6 +57,10 @@
     <string name="inner_protocol">Inner protocol</string>
     <string name="awg_parameters">AWG parameters</string>
     <string name="awg_i1">AWG I1</string>
+    <string name="i1_domain">I1 domain</string>
+    <string name="i1_domain_description">Creates a QUIC Initial mask and inserts it into I1.</string>
+    <string name="generate_i1">Generate I1</string>
+    <string name="i1_generation_failed">Could not generate I1 for this domain.</string>
     <string name="include_nodes">Included nodes</string>
     <string name="include_countries">Included countries</string>
     <string name="exclude_nodes">Excluded nodes</string>

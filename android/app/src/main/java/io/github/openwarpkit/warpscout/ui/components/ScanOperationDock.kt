@@ -86,7 +86,7 @@ fun ScanOperationDock(
     modifier: Modifier = Modifier
 ) {
     val finished = !state.running
-    val failed = finished && state.latestResultJson == null
+    val failed = finished && !state.errorMessage.isNullOrBlank()
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -112,7 +112,7 @@ fun ScanOperationDock(
                 Text(
                     text = when {
                         state.running -> state.phase.ifBlank { stringResource(R.string.phase_preparing) }
-                        failed -> state.errorMessage ?: stringResource(R.string.status_failed)
+                        failed -> state.errorMessage.orEmpty().ifBlank { stringResource(R.string.status_failed) }
                         else -> stringResource(R.string.status_completed)
                     },
                     style = MaterialTheme.typography.labelLarge,

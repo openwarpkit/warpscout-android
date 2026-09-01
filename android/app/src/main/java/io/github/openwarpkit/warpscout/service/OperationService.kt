@@ -196,6 +196,9 @@ class OperationService : Service() {
     private fun updateProgress(event: JSONObject) {
         operations.update { current ->
             val endpoint = event.optJSONObject("endpoint")
+            val rawPhase = event.optString("phase")
+            val discoveryAttemptStarted = current.operation in setOf("find-junk", "find-sni") &&
+                rawPhase in setOf("junk", "sni") && endpoint == null
             val working = endpoint?.optBoolean("working") == true
             val durable = endpoint?.optBoolean("durable") != false
             val region = endpoint?.optString("region").orEmpty()
@@ -203,12 +206,12 @@ class OperationService : Service() {
             current.copy(
                 phase = localizedPhase(event.optString("phase"))
                     .ifBlank { event.optString("message").ifBlank { current.phase } },
-                completed = event.optInt("completed", current.completed),
-                total = event.optInt("total", current.total),
-                working = current.working + if (working && durable) 1 else 0,
-                tornDown = current.tornDown + if (working && !durable) 1 else 0,
-                regions = if (region.isBlank()) current.regions else current.regions + region,
-                nodes = if (node.isBlank()) current.nodes else current.nodes + node
+                completed = if (discoveryAttemptStarted) 0 else event.optInt("completed", current.completed),
+                total = if (discoveryAttemptStarted) 0 else event.optInt("total", current.total),
+                working = if (discoveryAttemptStarted) 0 else current.working + if (working && durable) 1 else 0,
+                tornDown = if (discoveryAttemptStarted) 0 else current.tornDown + if (working && !durable) 1 else 0,
+                regions = if (discoveryAttemptStarted) emptySet() else if (region.isBlank()) current.regions else current.regions + region,
+                nodes = if (discoveryAttemptStarted) emptySet() else if (node.isBlank()) current.nodes else current.nodes + node
             )
         }
     }

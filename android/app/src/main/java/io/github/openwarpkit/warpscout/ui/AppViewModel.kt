@@ -164,6 +164,10 @@ class AppViewModel @Inject constructor(
 
     fun dismissOperation() = operations.clearFinished()
 
+    fun generateI1(domain: String): Result<String> = runCatching {
+        coreBridge.generateI1(domain)
+    }
+
     fun setSocksProtocol(value: String) = socksFormStateStore.setProtocol(value)
 
     fun setSocksEndpoint(value: String) = socksFormStateStore.setEndpoint(value)

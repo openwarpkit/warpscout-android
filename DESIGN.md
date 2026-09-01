@@ -88,7 +88,7 @@ Center the embossed Cloudflare cloud and the project name in the available upper
 
 ### Navigation and top app bars
 
-Use standard Material 3 navigation components with icons and localized labels. Phone navigation uses `surfaceContainer`, zero tonal elevation, and a backing exactly as tall as the Navigation Bar. Secondary screens use a compact Top App Bar with a standard back icon.
+Use standard Material 3 navigation components. Phone navigation is icon-only with 30 dp icons and localized accessibility descriptions; expanded Navigation Rail destinations retain visible labels. Phone navigation uses `surfaceContainer`, zero tonal elevation, and a backing exactly as tall as the Navigation Bar. Secondary screens use a compact Top App Bar with a standard back icon.
 
 ### Presets and Expert mode
 

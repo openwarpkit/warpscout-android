@@ -623,6 +623,27 @@ func TestJunkCommand(t *testing.T) {
 	}
 }
 
+func TestFindJunkI1Candidates(t *testing.T) {
+	got := findJunkI1Candidates("")
+	if len(got) != 5 {
+		t.Fatalf("candidate count = %d, want 5", len(got))
+	}
+	if got[0].chain != i1Default {
+		t.Fatalf("first candidate = %q, want default", got[0].chain)
+	}
+	for index, candidate := range got {
+		if size := cpsLen(t, candidate.chain); size == 0 || size > tunnelMTU {
+			t.Errorf("candidate %d size = %d", index+1, size)
+		}
+	}
+
+	const custom = "<b 0xdeadbeef>"
+	got = findJunkI1Candidates(custom)
+	if len(got) != 1 || got[0].chain != custom {
+		t.Fatalf("custom candidates = %+v", got)
+	}
+}
+
 func TestParseProto(t *testing.T) {
 	for _, p := range []string{protoWG, protoAWG, protoMASQUE, protoMASQUEH2} {
 		run, err := parseProto(p)

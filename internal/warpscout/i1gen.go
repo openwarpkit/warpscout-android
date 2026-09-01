@@ -49,6 +49,18 @@ func genI1(profile, host string) (chain, label string, err error) {
 	return chain, fmt.Sprintf("%s(%s)", profile, host), nil
 }
 
+func GenerateI1(host string) (string, error) {
+	host = strings.TrimSpace(host)
+	if host == "" {
+		return "", fmt.Errorf("I1 domain is empty")
+	}
+	_, packet, err := genQUICI1(host)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("<b 0x%x>", packet), nil
+}
+
 func regenI1(o options) error {
 	chain, label, err := genI1(o.genI1, o.i1Host)
 	if err != nil {

@@ -38,6 +38,12 @@ class CoreBridge @Inject constructor() {
 
     fun upstreamVersion(): String = version("upstreamVersion")
 
+    fun generateI1(host: String): String = try {
+        apiClass().getMethod("generateI1", String::class.java).invoke(null, host) as String
+    } catch (error: InvocationTargetException) {
+        throw error.targetException
+    }
+
     fun available(): Boolean = runCatching { apiClass() }.isSuccess
 
     private fun version(method: String): String = runCatching {

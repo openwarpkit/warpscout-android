@@ -87,6 +87,22 @@ func TestGenI1UnknownProfile(t *testing.T) {
 	}
 }
 
+func TestGenerateI1ReturnsFullQUICPacket(t *testing.T) {
+	chain, err := GenerateI1(testI1Host)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(chain, "<b 0x") || !strings.HasSuffix(chain, ">") {
+		t.Fatalf("GenerateI1() = %q", chain)
+	}
+	if got := cpsLen(t, chain); got < 80 || got > tunnelMTU {
+		t.Fatalf("generated packet length = %d", got)
+	}
+	if _, err := GenerateI1("   "); err == nil {
+		t.Fatal("empty domain must be rejected")
+	}
+}
+
 func readVarint(t *testing.T, b []byte, off int) (value, next int) {
 	t.Helper()
 	size := 1 << (b[off] >> 6)
