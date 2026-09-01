@@ -64,6 +64,9 @@ type ScanOptions struct {
 	MTU                 int      `json:"mtu"`
 	DNS                 []string `json:"dns,omitempty"`
 	SpeedTest           bool     `json:"speedTest"`
+	BestBy              string   `json:"bestBy,omitempty"`
+	SweepPorts          string   `json:"sweepPorts,omitempty"`
+	PingTarget          string   `json:"pingTarget,omitempty"`
 	ThroughEndpoint     string   `json:"throughEndpoint,omitempty"`
 	ConfigurationFormat string   `json:"configurationFormat,omitempty"`
 }

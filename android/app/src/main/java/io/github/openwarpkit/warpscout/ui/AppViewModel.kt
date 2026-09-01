@@ -8,8 +8,10 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.github.openwarpkit.warpscout.core.CoreBridge
 import io.github.openwarpkit.warpscout.BuildConfig
+import io.github.openwarpkit.warpscout.core.HistoryScanProfile
 import io.github.openwarpkit.warpscout.core.OperationRepository
 import io.github.openwarpkit.warpscout.core.OperationRequest
+import io.github.openwarpkit.warpscout.core.historyScanProfile
 import io.github.openwarpkit.warpscout.data.AccountStore
 import io.github.openwarpkit.warpscout.data.AppSettings
 import io.github.openwarpkit.warpscout.data.ConfigDocument
@@ -101,6 +103,9 @@ class AppViewModel @Inject constructor(
 
     private val mutableToolScanProfile = MutableStateFlow<ToolScanProfile?>(null)
     val toolScanProfile: StateFlow<ToolScanProfile?> = mutableToolScanProfile.asStateFlow()
+
+    private val mutableHistoryScanProfile = MutableStateFlow<HistoryScanProfile?>(null)
+    val historyScanProfile: StateFlow<HistoryScanProfile?> = mutableHistoryScanProfile.asStateFlow()
 
     val operation = operations.state
     val historySnapshot = historyDao.observeAll()
@@ -289,12 +294,27 @@ class AppViewModel @Inject constructor(
 
     fun applyToolResult(result: ToolSearchResult): Boolean {
         val profile = result.toScanProfile() ?: return false
+        mutableHistoryScanProfile.value = null
         mutableToolScanProfile.value = profile
         return true
     }
 
     fun consumeToolScanProfile(profile: ToolScanProfile) {
         if (mutableToolScanProfile.value == profile) mutableToolScanProfile.value = null
+    }
+
+    fun applyHistoryScan(item: HistoryEntity) {
+        mutableToolScanProfile.value = null
+        mutableHistoryScanProfile.value = historyScanProfile(
+            historyId = item.id,
+            presetId = item.preset,
+            reportProtocol = item.protocol,
+            optionsJson = item.optionsJson
+        )
+    }
+
+    fun consumeHistoryScanProfile(profile: HistoryScanProfile) {
+        if (mutableHistoryScanProfile.value == profile) mutableHistoryScanProfile.value = null
     }
 
     fun loadConfig(item: HistoryEntity, format: String) {
@@ -338,6 +358,7 @@ class AppViewModel @Inject constructor(
                 operations.clearFinished()
                 mutableConfigDocument.value = null
                 mutableToolScanProfile.value = null
+                mutableHistoryScanProfile.value = null
                 mutableUpdateResult.value = null
                 mutableUpdatePrompt.value = null
                 mutableAccountError.value = null

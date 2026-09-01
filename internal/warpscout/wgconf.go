@@ -264,9 +264,7 @@ func mihomoProxy(o options, name, endpoint string, run protoRun, mtu int, dns st
 
 	b := &strings.Builder{}
 	fmt.Fprintf(b, "- name: \"%s\"\n", name)
-	fmt.Fprintf(b, "  server: %s\n", host)
-	fmt.Fprintf(b, "  port: %s\n", port)
-	if err := mihomoPeer(b, run, o.ipv6); err != nil {
+	if err := mihomoPeer(b, run, o.ipv6, host, port); err != nil {
 		return "", err
 	}
 	if mtu > 0 {
@@ -275,12 +273,20 @@ func mihomoProxy(o options, name, endpoint string, run protoRun, mtu int, dns st
 	fmt.Fprintf(b, "  udp: true\n")
 	if dns != "" {
 		fmt.Fprintf(b, "  remote-dns-resolve: true\n")
-		fmt.Fprintf(b, "  dns: [%s]\n", dns)
+		fmt.Fprintf(b, "  dns: [%s]\n", mihomoDNS(dns))
 	}
 	return b.String(), nil
 }
 
-func mihomoPeer(b *strings.Builder, run protoRun, ipv6 bool) error {
+func mihomoDNS(dns string) string {
+	items := strings.Split(dns, ",")
+	for index, item := range items {
+		items[index] = fmt.Sprintf("'%s'", strings.TrimSpace(item))
+	}
+	return strings.Join(items, ", ")
+}
+
+func mihomoPeer(b *strings.Builder, run protoRun, ipv6 bool, host, port string) error {
 	if run.isMASQUE() {
 		if masqueAcct == nil {
 			return fmt.Errorf("no MASQUE device in the account file")
@@ -290,6 +296,8 @@ func mihomoPeer(b *strings.Builder, run protoRun, ipv6 bool) error {
 			return err
 		}
 		fmt.Fprintf(b, "  type: masque\n")
+		fmt.Fprintf(b, "  server: %s\n", host)
+		fmt.Fprintf(b, "  port: %s\n", port)
 		// mihomo's default is HTTP/3; the TCP transport is the same type with a
 		// network selector rather than a type of its own.
 		if run.isH2() {
@@ -304,9 +312,13 @@ func mihomoPeer(b *strings.Builder, run protoRun, ipv6 bool) error {
 
 	fmt.Fprintf(b, "  type: wireguard\n")
 	fmt.Fprintf(b, "  private-key: %s\n", warpPrivateKey)
-	fmt.Fprintf(b, "  public-key: %s\n", warpPublicKey)
 	mihomoAddr(b, warpAddress, warpAddressV6, ipv6)
-	fmt.Fprintf(b, "  allowed-ips: ['%s']\n", allowedIPs(ipv6))
+	fmt.Fprintf(b, "  peers:\n")
+	fmt.Fprintf(b, "    - server: %s\n", host)
+	fmt.Fprintf(b, "      port: %s\n", port)
+	fmt.Fprintf(b, "      public-key: %s\n", warpPublicKey)
+	fmt.Fprintf(b, "      allowed-ips: ['%s']\n", allowedIPs(ipv6))
+	fmt.Fprintf(b, "      persistent-keepalive: %d\n", keepalive)
 	if !run.isAWG() {
 		return nil
 	}

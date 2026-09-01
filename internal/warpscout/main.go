@@ -185,7 +185,7 @@ func runScanCmd(ctx context.Context, opts options) error {
 		return fmt.Errorf("%s", noEndpointMsg(opts))
 	}
 
-	if opts.speed && showsSpeed(opts) {
+	if (opts.speed || opts.bestBy == bestKeySpeed) && showsSpeed(opts) {
 		runWithUI(opts, cancel, false, "", "q to skip the rest", func(emit emitter) {
 			measureSpeed(ctx, ph, time.Duration(opts.timeoutSec)*time.Second, emit)
 		})
@@ -234,6 +234,9 @@ func tablesFollow(opts options) bool {
 }
 
 func showsSpeed(opts options) bool {
+	if opts.bestBy == bestKeySpeed {
+		return true
+	}
 	if !opts.best && opts.conf != confStdout {
 		return true
 	}
@@ -487,7 +490,11 @@ func runScan(ctx context.Context, opts options, run protoRun, ips []netip.Addr, 
 		warpPorts = ports
 		emit(stepMsg{done: true, label: "Port", summary: fmt.Sprintf("%d (pinned, phase 1 skipped)", opts.port)})
 	}
-	if !run.isMASQUE() && opts.port == 0 {
+	if opts.sweepPorts == sweepAll {
+		warpPorts = allWarpPorts()
+		emit(stepMsg{done: true, label: "Ports", summary: fmt.Sprintf("sweeping all %d known ports (phase 1 skipped)", len(warpPorts))})
+	}
+	if !run.isMASQUE() && opts.port == 0 && opts.sweepPorts != sweepAll {
 		open, err := reachablePorts(ctx, run, ips, timeout, portProbeSample, opts.tunnelParallel, emit)
 		if err != nil {
 			emit(stepMsg{fail: true, summary: fmt.Sprintf("phase 1 failed: %v", err)})
@@ -500,7 +507,10 @@ func runScan(ctx context.Context, opts options, run protoRun, ips []netip.Addr, 
 		warpPorts = open
 	}
 
-	targets := probeTargets(run, ips, ports)
+	if !run.isMASQUE() {
+		ports = warpPorts
+	}
+	targets := probeTargets(run, opts.sweepPorts != "", ips, ports)
 	results := make([]endpointResult, len(targets))
 	pings := opts.tunPingCount
 	label := fmt.Sprintf("Phase 2: verifying tunnels (proto=%s)", run.name)

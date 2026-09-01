@@ -2,6 +2,7 @@ package warpscout
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -25,7 +26,7 @@ type ipStack struct {
 }
 
 func newIPStack(local []netip.Addr, mtu int) (tun.Device, *ipStack, error) {
-	tunDev, tnet, err := netstack.CreateNetTUN(local, []netip.Addr{netip.MustParseAddr(pingTarget)}, mtu)
+	tunDev, tnet, err := netstack.CreateNetTUN(local, []netip.Addr{netip.MustParseAddr(tunnelDNS)}, mtu)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -117,8 +118,8 @@ type probeTarget struct {
 	port int // 0 means "try the tunnel's whole port list"
 }
 
-func probeTargets(run protoRun, ips []netip.Addr, ports []int) []probeTarget {
-	if !run.isMASQUE() {
+func probeTargets(run protoRun, perPort bool, ips []netip.Addr, ports []int) []probeTarget {
+	if !run.isMASQUE() && !perPort {
 		targets := make([]probeTarget, len(ips))
 		for i, ip := range ips {
 			targets[i] = probeTarget{ip: ip}
@@ -303,8 +304,46 @@ func preferV4(ips []string) string {
 	return ips[0]
 }
 
+const tunnelDNS = "1.1.1.1"
+
+var (
+	pingTarget = tunnelDNS
+	pingAddr   atomic.Pointer[netip.Addr]
+)
+
+func pingDst(tnet *netstack.Net, timeout time.Duration) (netip.Addr, bool) {
+	if addr := pingAddr.Load(); addr != nil {
+		return *addr, true
+	}
+	if addr, err := netip.ParseAddr(pingTarget); err == nil {
+		pingAddr.CompareAndSwap(nil, &addr)
+		return addr, true
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	ips, err := tnet.LookupContextHost(ctx, pingTarget)
+	if err != nil || len(ips) == 0 {
+		return netip.Addr{}, false
+	}
+	addr, err := netip.ParseAddr(preferV4(ips))
+	if err != nil {
+		return netip.Addr{}, false
+	}
+	pingAddr.CompareAndSwap(nil, &addr)
+	return addr, true
+}
+
+func pingTargetLabel() string {
+	if addr := pingAddr.Load(); addr != nil && addr.String() != pingTarget {
+		return fmt.Sprintf("%s (%s)", pingTarget, addr)
+	}
+	if _, err := netip.ParseAddr(pingTarget); err != nil {
+		return pingTarget + " (unresolved)"
+	}
+	return pingTarget
+}
+
 const (
-	pingTarget      = "1.1.1.1"
 	pingInterval    = 200 * time.Millisecond
 	durabilityPings = 10
 	// torn down = the tunnel passes data and is then cut mid-stream, never recovering,
@@ -322,10 +361,13 @@ const (
 // netstack (many userspace tunnels at once) still counts instead of scoring as
 // a loss.
 func (s *ipStack) tunnelPing(count int, timeout time.Duration) (time.Duration, float32, bool) {
-	dst := netip.MustParseAddr(pingTarget)
+	dst, ok := pingDst(s.tnet, timeout)
+	if !ok {
+		return 0, 1, false
+	}
 	pc, err := s.tnet.DialPingAddr(netip.Addr{}, dst)
 	if err != nil {
-		return 0, 0, false
+		return 0, 1, false
 	}
 	defer pc.Close()
 

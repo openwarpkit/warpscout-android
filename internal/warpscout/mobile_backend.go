@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/netip"
 	"runtime/debug"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -114,7 +115,7 @@ func (b *MobileBackend) Scan(ctx context.Context, input core.Account, scan core.
 	if !anyEndpoint(ph) {
 		return core.ScanReport{}, mobileFailure("no_endpoints", errors.New(noEndpointMsg(opts)), true)
 	}
-	if opts.speed {
+	if opts.speed || opts.bestBy == bestKeySpeed {
 		measureSpeed(ctx, ph, timeout, progress.Emit)
 	}
 
@@ -456,6 +457,9 @@ func mobileScanOptions(scan core.ScanOptions) (options, error) {
 		ipv6:           scan.IPv6,
 		full:           scan.Full,
 		speed:          scan.SpeedTest,
+		bestBy:         strings.TrimSpace(scan.BestBy),
+		sweepPorts:     strings.TrimSpace(scan.SweepPorts),
+		pingTarget:     strings.TrimSpace(scan.PingTarget),
 		plain:          true,
 	}
 	if !opts.full && opts.perSubnet <= 0 {
@@ -464,6 +468,13 @@ func mobileScanOptions(scan core.ScanOptions) (options, error) {
 	if opts.tunPingCount > 0 && opts.tunPingCount < minDurabilityPings {
 		return options{}, mobileFailure("invalid_tunnel_ping_count", fmt.Errorf("tunnel ping count must be at least %d", minDurabilityPings), false)
 	}
+	if opts.bestBy == "" {
+		opts.bestBy = bestKeyPing
+	}
+	if !slices.Contains(bestKeys, opts.bestBy) {
+		return options{}, mobileFailure("invalid_best_by", fmt.Errorf("bestBy must be one of %s", strings.Join(bestKeys, ", ")), false)
+	}
+	bestBy = opts.bestBy
 	if opts.port < 0 || opts.port > 65535 {
 		return options{}, mobileFailure("invalid_port", errors.New("port must be between 1 and 65535"), false)
 	}
@@ -472,6 +483,31 @@ func mobileScanOptions(scan core.ScanOptions) (options, error) {
 	}
 	if _, err := parseProto(opts.proto); err != nil {
 		return options{}, mobileFailure("invalid_protocol", err, false)
+	}
+	if opts.sweepPorts != "" {
+		if !slices.Contains(sweepModes, opts.sweepPorts) {
+			return options{}, mobileFailure("invalid_sweep_ports", fmt.Errorf("sweepPorts must be one of %s", strings.Join(sweepModes, ", ")), false)
+		}
+		if opts.port != 0 {
+			return options{}, mobileFailure("conflicting_port_options", errors.New("sweepPorts and port cannot be used together"), false)
+		}
+		if opts.proto == protoMASQUE || opts.proto == protoMASQUEH2 {
+			return options{}, mobileFailure("unsupported_sweep_ports", errors.New("port sweeping does not apply to MASQUE"), false)
+		}
+		sweepingPorts = true
+	}
+	if opts.pingTarget != "" {
+		if opts.tunPingCount <= 0 {
+			return options{}, mobileFailure("ping_target_requires_tunnel_ping", errors.New("pingTarget requires tunnel pings"), false)
+		}
+		if addr, err := netip.ParseAddr(opts.pingTarget); err == nil {
+			pingTarget = addr.String()
+		} else {
+			if strings.ContainsAny(opts.pingTarget, ":/ ") {
+				return options{}, mobileFailure("invalid_ping_target", errors.New("pingTarget must be an IP address or hostname"), false)
+			}
+			pingTarget = opts.pingTarget
+		}
 	}
 	if opts.through != "" {
 		if opts.proto != protoWG && opts.proto != protoAWG {
@@ -553,6 +589,10 @@ func resetMobileState() {
 	masqueAcct = nil
 	pools = poolsV4
 	warpPorts = append([]int(nil), primaryWarpPorts...)
+	bestBy = bestKeyPing
+	sweepingPorts = false
+	pingTarget = tunnelDNS
+	pingAddr.Store(nil)
 	awgJc = 6
 	awgJmin = 10
 	awgJmax = 50

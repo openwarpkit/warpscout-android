@@ -43,6 +43,26 @@ func TestMobileScanOptionsValidatesBoundary(t *testing.T) {
 	if opts.tunnelParallel != nestedTunnelJobs {
 		t.Fatalf("nested jobs = %d", opts.tunnelParallel)
 	}
+
+	opts, err = mobileScanOptions(core.ScanOptions{
+		BestBy:          bestKeySpeed,
+		SweepPorts:      sweepAll,
+		PingTarget:      "example.com",
+		TunnelPingCount: durabilityPings,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if opts.bestBy != bestKeySpeed || opts.sweepPorts != sweepAll || pingTarget != "example.com" {
+		t.Fatalf("upstream options = best %q, sweep %q, ping %q", opts.bestBy, opts.sweepPorts, pingTarget)
+	}
+
+	_, err = mobileScanOptions(core.ScanOptions{BestBy: "unknown"})
+	assertCoreError(t, err, "invalid_best_by")
+	_, err = mobileScanOptions(core.ScanOptions{Port: 2408, SweepPorts: sweepOpen})
+	assertCoreError(t, err, "conflicting_port_options")
+	_, err = mobileScanOptions(core.ScanOptions{PingTarget: "example.com"})
+	assertCoreError(t, err, "ping_target_requires_tunnel_ping")
 }
 
 func TestMobileTargetSelectsAddressFamily(t *testing.T) {
@@ -126,7 +146,7 @@ func TestMobileRenderConfigFormats(t *testing.T) {
 		{"wireguard", core.ScanOptions{Protocol: core.ProtocolWG}, core.ConfigWireGuard, []string{"[Interface]", "Endpoint = 188.114.96.1:2408"}},
 		{"amneziawg", core.ScanOptions{Protocol: core.ProtocolAWG}, core.ConfigAmneziaWG, []string{"Jc = 6", "Jmin = 10", "Jmax = 50"}},
 		{"usque", core.ScanOptions{Protocol: core.ProtocolMASQUEH3}, core.ConfigUSQUE, []string{`"endpoint_v4": "188.114.96.1"`, `"access_token": "masque-token"`}},
-		{"mihomo", core.ScanOptions{Protocol: core.ProtocolAWG}, core.ConfigMihomo, []string{"proxies:", "type: wireguard", "amnezia-wg-option:"}},
+		{"mihomo", core.ScanOptions{Protocol: core.ProtocolAWG}, core.ConfigMihomo, []string{"proxies:", "type: wireguard", "peers:", "persistent-keepalive: 25", "amnezia-wg-option:"}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

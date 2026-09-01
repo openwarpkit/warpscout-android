@@ -293,6 +293,7 @@ private fun AppNavHost(
                     viewModel = viewModel,
                     historyId = historyId,
                     onBack = { navController.popBackStack() },
+                    onUseForScan = { navController.navigatePrimary(SCAN_ROUTE) },
                     onViewConfig = { format -> navController.navigate("config/$historyId/$format") }
                 )
             }

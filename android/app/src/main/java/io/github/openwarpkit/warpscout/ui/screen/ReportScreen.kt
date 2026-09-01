@@ -63,6 +63,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -78,6 +79,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.openwarpkit.warpscout.R
+import io.github.openwarpkit.warpscout.core.StoredScanOptions
+import io.github.openwarpkit.warpscout.core.parseStoredScanOptions
 import io.github.openwarpkit.warpscout.data.HistoryEntity
 import io.github.openwarpkit.warpscout.data.ReportImageColumn
 import io.github.openwarpkit.warpscout.data.ReportImageDocument
@@ -87,6 +90,8 @@ import io.github.openwarpkit.warpscout.ui.AppViewModel
 import org.json.JSONObject
 import java.text.DateFormat
 import java.util.Date
+import java.util.Locale
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 internal data class ReportEndpoint(
@@ -125,12 +130,46 @@ internal data class ReportSort(
     val direction: ReportSortDirection
 )
 
+internal enum class ScanSettingId(val label: Int) {
+    ScanType(R.string.scan_type),
+    Protocol(R.string.protocol),
+    OuterEndpoint(R.string.through_endpoint),
+    InnerProtocol(R.string.inner_protocol),
+    IpFamily(R.string.ip_family),
+    PortScanMode(R.string.port_scan_mode),
+    Port(R.string.port),
+    Target(R.string.custom_target),
+    Timeout(R.string.timeout),
+    Jobs(R.string.jobs),
+    Sampling(R.string.sampling),
+    TunnelPings(R.string.tunnel_pings),
+    PingTarget(R.string.ping_target),
+    BestBy(R.string.best_endpoint_by),
+    SpeedTest(R.string.speed_test),
+    AWGParameters(R.string.awg_parameters),
+    AWGI1(R.string.awg_i1),
+    MASQUESNI(R.string.masque_sni),
+    MASQUEAttempts(R.string.masque_attempts),
+    IncludeNodes(R.string.include_nodes),
+    IncludeCountries(R.string.include_countries),
+    ExcludeNodes(R.string.exclude_nodes),
+    ExcludeCountries(R.string.exclude_countries),
+    MTU(R.string.mtu),
+    DNS(R.string.dns),
+    ConfigurationFormat(R.string.configuration_format)
+}
+
+internal data class ScanSettingValue(val id: ScanSettingId, val value: String)
+
+internal data class DisplayScanSetting(val label: String, val value: String)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReportScreen(
     viewModel: AppViewModel,
     historyId: Long,
     onBack: () -> Unit,
+    onUseForScan: () -> Unit,
     onViewConfig: (String) -> Unit
 ) {
     val history by viewModel.history.collectAsStateWithLifecycle()
@@ -138,6 +177,10 @@ fun ReportScreen(
     val exportError by viewModel.exportError.collectAsStateWithLifecycle()
     val item = history.firstOrNull { it.id == historyId }
     val snackbar = remember { SnackbarHostState() }
+    val context = LocalContext.current
+    val copyScope = rememberCoroutineScope()
+    val settingsClipboardLabel = stringResource(R.string.scan_settings)
+    val settingsCopiedMessage = stringResource(R.string.scan_settings_copied)
     val date = item?.let {
         DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(it.startedAt))
     }
@@ -193,6 +236,18 @@ fun ReportScreen(
                 onShare = { viewModel.shareReport(item) },
                 onSaveImage = viewModel::saveReportImage,
                 onShareImage = viewModel::shareReportImage,
+                onApplySettings = {
+                    viewModel.applyHistoryScan(item)
+                    onUseForScan()
+                },
+                onCopySettings = { content ->
+                    context.getSystemService(ClipboardManager::class.java)
+                        .setPrimaryClip(ClipData.newPlainText(settingsClipboardLabel, content))
+                    copyScope.launch {
+                        snackbar.currentSnackbarData?.dismiss()
+                        snackbar.showSnackbar(settingsCopiedMessage)
+                    }
+                },
                 onViewConfig = onViewConfig
             )
         }
@@ -210,6 +265,8 @@ private fun ReportContent(
     onShare: () -> Unit,
     onSaveImage: (ReportImageDocument, Uri) -> Unit,
     onShareImage: (ReportImageDocument) -> Unit,
+    onApplySettings: () -> Unit,
+    onCopySettings: (String) -> Unit,
     onViewConfig: (String) -> Unit
 ) {
     val results = remember(item.resultJson) { parseReport(item.resultJson.orEmpty()) }
@@ -228,6 +285,17 @@ private fun ReportContent(
         visibleReportColumns(results, hideEmptyColumns)
     }
     val displayedResults = remember(results, sort) { sortReportResults(results, sort) }
+    val settings = remember(item.preset, item.protocol, item.optionsJson) {
+        scanSettings(item.preset, item.protocol, item.optionsJson)
+    }
+    val displayedSettings = settings.map { setting ->
+        DisplayScanSetting(
+            label = stringResource(setting.id.label),
+            value = localizedScanSettingValue(setting)
+        )
+    }
+    val settingsTitle = stringResource(R.string.scan_settings)
+    val settingsCopyText = scanSettingsCopyText(settingsTitle, displayedSettings)
     val imageTitle = stringResource(R.string.report_image_title)
     val imageProtocol = stringResource(R.string.protocol)
     val imageWorking = stringResource(R.string.report_image_working)
@@ -410,6 +478,37 @@ private fun ReportContent(
             }
             HorizontalDivider()
         }
+        item("scan-settings") {
+            ReportSection(
+                title = settingsTitle,
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp)
+            ) {
+                Column(Modifier.fillMaxWidth()) {
+                    displayedSettings.forEachIndexed { index, setting ->
+                        ScanSettingRow(setting)
+                        if (index < displayedSettings.lastIndex) HorizontalDivider()
+                    }
+                }
+                Button(
+                    onClick = onApplySettings,
+                    enabled = actionsEnabled,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(stringResource(R.string.use_scan_settings))
+                }
+                OutlinedButton(
+                    onClick = { onCopySettings(settingsCopyText) },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Outlined.ContentCopy, contentDescription = null)
+                    Text(
+                        stringResource(R.string.copy_scan_settings),
+                        modifier = Modifier.padding(start = 8.dp)
+                    )
+                }
+            }
+            HorizontalDivider()
+        }
         item("configuration") {
             ReportSection(
                 title = stringResource(R.string.configuration_section),
@@ -447,6 +546,227 @@ private fun ReportContent(
 }
 
 @Composable
+private fun ScanSettingRow(setting: DisplayScanSetting) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(3.dp)
+    ) {
+        Text(
+            setting.label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            setting.value,
+            style = MaterialTheme.typography.bodyMedium,
+            fontFamily = FontFamily.Monospace
+        )
+    }
+}
+
+@Composable
+private fun localizedScanSettingValue(setting: ScanSettingValue): String = when (setting.id) {
+    ScanSettingId.ScanType -> stringResource(
+        when (setting.value) {
+            "durable" -> R.string.preset_durable
+            "full" -> R.string.preset_full
+            else -> R.string.preset_standard
+        }
+    )
+    ScanSettingId.Protocol,
+    ScanSettingId.InnerProtocol -> protocolDisplayName(setting.value)
+    ScanSettingId.IpFamily -> stringResource(
+        if (setting.value == "ipv6") R.string.ipv6 else R.string.ipv4
+    )
+    ScanSettingId.PortScanMode -> stringResource(
+        when (setting.value) {
+            "open" -> R.string.port_scan_open
+            "all" -> R.string.port_scan_all
+            "per-endpoint" -> R.string.port_scan_per_endpoint
+            else -> R.string.port_scan_first
+        }
+    )
+    ScanSettingId.Port -> if (setting.value == "automatic") {
+        stringResource(R.string.setting_automatic)
+    } else {
+        setting.value
+    }
+    ScanSettingId.Target -> if (setting.value == "built-in") {
+        stringResource(R.string.setting_builtin_pools)
+    } else {
+        setting.value
+    }
+    ScanSettingId.Sampling -> if (setting.value == "full") {
+        stringResource(R.string.setting_full_sampling)
+    } else {
+        stringResource(R.string.setting_sample_per_subnet, setting.value.toIntOrNull() ?: 0)
+    }
+    ScanSettingId.TunnelPings -> if (setting.value == "disabled") {
+        stringResource(R.string.setting_disabled)
+    } else {
+        setting.value
+    }
+    ScanSettingId.BestBy -> stringResource(
+        if (setting.value == "speed") R.string.best_by_speed else R.string.best_by_ping
+    )
+    ScanSettingId.SpeedTest -> stringResource(
+        if (setting.value == "enabled") R.string.setting_enabled else R.string.setting_disabled
+    )
+    ScanSettingId.AWGI1,
+    ScanSettingId.MASQUESNI,
+    ScanSettingId.MTU,
+    ScanSettingId.DNS -> if (setting.value == "default") {
+        stringResource(R.string.setting_default)
+    } else {
+        setting.value
+    }
+    else -> setting.value
+}
+
+private fun protocolDisplayName(protocol: String): String = when (protocol.lowercase(Locale.ROOT)) {
+    "awg" -> "AWG"
+    "masque" -> "MASQUE H3"
+    "masque-h2" -> "MASQUE H2"
+    else -> "WG"
+}
+
+internal fun scanSettings(preset: String, reportProtocol: String, optionsJson: String): List<ScanSettingValue> {
+    return scanSettings(preset, reportProtocol, parseStoredScanOptions(optionsJson))
+}
+
+internal fun scanSettings(
+    preset: String,
+    reportProtocol: String,
+    options: StoredScanOptions
+): List<ScanSettingValue> {
+    val protocol = options.protocol.ifBlank { reportProtocol }.lowercase(Locale.ROOT)
+    val through = options.throughEndpoint.trim()
+    val sweepPorts = options.sweepPorts.trim()
+    val tunnelPings = options.tunnelPingCount
+    val bestBy = options.bestBy.ifBlank { "ping" }
+
+    return buildList {
+        add(ScanSettingValue(ScanSettingId.ScanType, preset.ifBlank { "standard" }))
+        add(ScanSettingValue(ScanSettingId.Protocol, protocol.ifBlank { "awg" }))
+        if (through.isNotEmpty()) {
+            add(ScanSettingValue(ScanSettingId.OuterEndpoint, through))
+            add(ScanSettingValue(ScanSettingId.InnerProtocol, options.innerProtocol))
+        }
+        add(ScanSettingValue(ScanSettingId.IpFamily, if (options.ipv6) "ipv6" else "ipv4"))
+        add(
+            ScanSettingValue(
+                ScanSettingId.PortScanMode,
+                if (protocol.startsWith("masque")) "per-endpoint" else sweepPorts.ifBlank { "first" }
+            )
+        )
+        add(
+            ScanSettingValue(
+                ScanSettingId.Port,
+                options.port.takeIf { it > 0 }?.toString() ?: "automatic"
+            )
+        )
+        add(
+            ScanSettingValue(
+                ScanSettingId.Target,
+                options.customTarget.trim().ifBlank { "built-in" }
+            )
+        )
+        add(ScanSettingValue(ScanSettingId.Timeout, options.timeoutSec.toString()))
+        add(ScanSettingValue(ScanSettingId.Jobs, options.jobs.toString()))
+        add(
+            ScanSettingValue(
+                ScanSettingId.Sampling,
+                if (options.full || preset == "full") {
+                    "full"
+                } else {
+                    options.samplePerSubnet.toString()
+                }
+            )
+        )
+        add(
+            ScanSettingValue(
+                ScanSettingId.TunnelPings,
+                tunnelPings.takeIf { it > 0 }?.toString() ?: "disabled"
+            )
+        )
+        if (tunnelPings > 0) {
+            add(
+                ScanSettingValue(
+                    ScanSettingId.PingTarget,
+                    options.pingTarget.trim().ifBlank { "1.1.1.1" }
+                )
+            )
+        }
+        add(ScanSettingValue(ScanSettingId.BestBy, bestBy))
+        add(
+            ScanSettingValue(
+                ScanSettingId.SpeedTest,
+                if (options.speedTest || bestBy == "speed") "enabled" else "disabled"
+            )
+        )
+        if (protocol == "awg") {
+            val junkCount = options.awgJunkCount.takeIf { it > 0 } ?: 6
+            val junkMin = options.awgJunkMin.takeIf { it > 0 } ?: 10
+            val junkMax = options.awgJunkMax.takeIf { it > 0 } ?: 50
+            add(
+                ScanSettingValue(
+                    ScanSettingId.AWGParameters,
+                    "Jc=$junkCount  Jmin=$junkMin  Jmax=$junkMax"
+                )
+            )
+            add(
+                ScanSettingValue(
+                    ScanSettingId.AWGI1,
+                    options.awgI1.trim().ifBlank { "default" }
+                )
+            )
+        }
+        if (protocol.startsWith("masque")) {
+            add(
+                ScanSettingValue(
+                    ScanSettingId.MASQUESNI,
+                    options.masqueSni.trim().ifBlank { "default" }
+                )
+            )
+            add(
+                ScanSettingValue(
+                    ScanSettingId.MASQUEAttempts,
+                    options.masqueAttempts.toString()
+                )
+            )
+        }
+        addSettingList(options.includeNodes, ScanSettingId.IncludeNodes)
+        addSettingList(options.includeCountries, ScanSettingId.IncludeCountries)
+        addSettingList(options.excludeNodes, ScanSettingId.ExcludeNodes)
+        addSettingList(options.excludeCountries, ScanSettingId.ExcludeCountries)
+        add(
+            ScanSettingValue(
+                ScanSettingId.MTU,
+                options.mtu.takeIf { it > 0 }?.toString() ?: "default"
+            )
+        )
+        add(ScanSettingValue(ScanSettingId.DNS, options.dns.joinToString(", ").ifBlank { "default" }))
+        options.configurationFormat.trim().takeIf(String::isNotEmpty)?.let {
+            add(ScanSettingValue(ScanSettingId.ConfigurationFormat, it))
+        }
+    }
+}
+
+private fun MutableList<ScanSettingValue>.addSettingList(values: List<String>, id: ScanSettingId) {
+    values.takeIf(List<String>::isNotEmpty)?.let {
+        add(ScanSettingValue(id, it.joinToString(", ")))
+    }
+}
+
+internal fun scanSettingsCopyText(title: String, settings: List<DisplayScanSetting>): String =
+    buildString {
+        appendLine(title)
+        settings.forEach { appendLine("${it.label}: ${it.value}") }
+    }.trimEnd()
+
+@Composable
 private fun ReportSection(
     title: String,
     modifier: Modifier = Modifier,
@@ -464,8 +784,13 @@ private fun ReportSection(
 @Composable
 private fun BestEndpointDetails(item: HistoryEntity) {
     val context = LocalContext.current
-    val endpoints = remember(item.resultJson) {
-        bestEndpointsByNode(parseReport(item.resultJson.orEmpty()))
+    val endpoints = remember(item.resultJson, item.optionsJson) {
+        val options = runCatching { JSONObject(item.optionsJson) }.getOrDefault(JSONObject())
+        bestEndpointsByNode(
+            results = parseReport(item.resultJson.orEmpty()),
+            bestBy = options.optString("bestBy", "ping"),
+            sweepPorts = options.optString("sweepPorts")
+        )
     }
     if (endpoints.isEmpty()) {
         Text(stringResource(R.string.no_results), color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -591,16 +916,26 @@ private fun BestEndpointCard(endpoint: ReportEndpoint, context: android.content.
     }
 }
 
-internal fun bestEndpointsByNode(results: List<ReportEndpoint>): List<ReportEndpoint> =
+internal fun bestEndpointsByNode(
+    results: List<ReportEndpoint>,
+    bestBy: String = "ping",
+    sweepPorts: String = ""
+): List<ReportEndpoint> =
     results
         .asSequence()
         .filter { it.working && it.durable }
-        .groupBy { it.node.ifBlank { "-" } }
+        .groupBy { if (sweepPorts.isNotEmpty()) it.endpoint else it.node.ifBlank { "-" } }
         .values
-        .mapNotNull { group -> group.minWithOrNull(::compareBestEndpoints) }
-        .sortedWith(::compareBestEndpoints)
+        .mapNotNull { group ->
+            group.minWithOrNull { first, second -> compareBestEndpoints(first, second, bestBy) }
+        }
+        .sortedWith { first, second -> compareBestEndpoints(first, second, bestBy) }
 
-private fun compareBestEndpoints(first: ReportEndpoint, second: ReportEndpoint): Int {
+private fun compareBestEndpoints(first: ReportEndpoint, second: ReportEndpoint, bestBy: String): Int {
+    if (bestBy == "speed") {
+        val speed = second.speedMbps.compareTo(first.speedMbps)
+        if (speed != 0) return speed
+    }
     val loss = first.lossPercent.compareTo(second.lossPercent)
     if (loss != 0) return loss
     val firstPing = first.tunnelPingMs.takeIf { it > 0 } ?: first.endpointPingMs

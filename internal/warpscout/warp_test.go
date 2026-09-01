@@ -120,6 +120,21 @@ func TestLessByLossRTT(t *testing.T) {
 	}
 }
 
+func TestLessByLossRTTSpeed(t *testing.T) {
+	bestBy = bestKeySpeed
+	defer func() { bestBy = bestKeyPing }()
+
+	slowPing := endpointResult{endpoint: "a", epPing: 200 * time.Millisecond, speed: 90}
+	fastPing := endpointResult{endpoint: "b", epPing: 20 * time.Millisecond, speed: 9}
+	if !lessByLossRTT(slowPing, fastPing) {
+		t.Error("higher speed did not outrank lower ping")
+	}
+	unmeasured := endpointResult{endpoint: "c", epPing: 10 * time.Millisecond}
+	if !lessByLossRTT(fastPing, unmeasured) {
+		t.Error("an unmeasured endpoint outranked a measured one")
+	}
+}
+
 func TestPingDiagnostics(t *testing.T) {
 	cases := []struct {
 		name     string
@@ -313,8 +328,10 @@ func TestRenderMihomoConf(t *testing.T) {
 	for _, want := range []string{
 		"proxies:",
 		"- name: \"AWG WARP\"",
-		"server: 188.114.98.5",
-		"port: 2408",
+		"peers:",
+		"      - server: 188.114.98.5",
+		"        port: 2408",
+		"        persistent-keepalive: 25",
 		"type: wireguard",
 		"private-key: " + warpPrivateKey,
 		"public-key: " + warpPublicKey,
@@ -342,7 +359,7 @@ func TestRenderMihomoConf(t *testing.T) {
 		t.Fatal(err)
 	}
 	v6 := string(conf)
-	for _, want := range []string{"server: 2606:4700:d0::1", "ipv6: " + warpAddressV6, "allowed-ips: ['::/0']", "dns: [" + warpDNSv6 + "]"} {
+	for _, want := range []string{"server: 2606:4700:d0::1", "ipv6: " + warpAddressV6, "allowed-ips: ['::/0']", "dns: ['2606:4700:4700::1111', '2606:4700:4700::1001']"} {
 		if !strings.Contains(v6, want) {
 			t.Errorf("IPv6 mihomo config missing %q:\n%s", want, v6)
 		}
@@ -614,7 +631,7 @@ func TestProbeTargets(t *testing.T) {
 	ips := []netip.Addr{netip.MustParseAddr("162.159.198.1"), netip.MustParseAddr("162.159.198.2")}
 	ports := []int{443, 8443}
 
-	wg := probeTargets(protoRun{kindAWG, protoAWG}, ips, ports)
+	wg := probeTargets(protoRun{kindAWG, protoAWG}, false, ips, ports)
 	if len(wg) != len(ips) {
 		t.Fatalf("wg targets = %d, want one per address", len(wg))
 	}
@@ -624,8 +641,17 @@ func TestProbeTargets(t *testing.T) {
 		}
 	}
 
-	// Working ports differ per MASQUE address, so every pair must be its own row.
-	masque := probeTargets(protoRun{kindMASQUE, protoMASQUE}, ips, ports)
+	swept := probeTargets(protoRun{kindAWG, protoAWG}, true, ips, ports)
+	if len(swept) != len(ips)*len(ports) {
+		t.Fatalf("swept targets = %d, want %d", len(swept), len(ips)*len(ports))
+	}
+	for _, target := range swept {
+		if target.port == 0 {
+			t.Errorf("swept target %v pins no port", target)
+		}
+	}
+
+	masque := probeTargets(protoRun{kindMASQUE, protoMASQUE}, false, ips, ports)
 	if len(masque) != len(ips)*len(ports) {
 		t.Fatalf("masque targets = %d, want %d", len(masque), len(ips)*len(ports))
 	}

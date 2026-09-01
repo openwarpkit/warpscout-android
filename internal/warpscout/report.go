@@ -126,6 +126,9 @@ func speedHeaders(show bool) []string {
 }
 
 func sortNote(ping bool) string {
+	if bestBy == bestKeySpeed {
+		return "sorted by download speed"
+	}
 	if ping {
 		return "sorted by in-tunnel loss, then in-tunnel ping"
 	}
@@ -133,6 +136,9 @@ func sortNote(ping bool) string {
 }
 
 func bestNote(ping bool) string {
+	if bestBy == bestKeySpeed {
+		return "highest download speed"
+	}
 	if ping {
 		return "lowest in-tunnel loss, then in-tunnel ping"
 	}
@@ -248,9 +254,21 @@ func filterSorted(results []endpointResult, keep func(endpointResult) bool) []en
 	return out
 }
 
+const (
+	bestKeyPing  = "ping"
+	bestKeySpeed = "speed"
+)
+
+var bestKeys = []string{bestKeyPing, bestKeySpeed}
+
+var bestBy = bestKeyPing
+
 // Loss before ping, mirroring CloudflareWarpSpeedTest. Unmeasured endpoints
 // carry loss 0, so without -tun-ping this degrades to ping-only ordering.
 func lessByLossRTT(a, b endpointResult) bool {
+	if bestBy == bestKeySpeed && a.speed != b.speed {
+		return a.speed > b.speed
+	}
 	if a.loss != b.loss {
 		return a.loss < b.loss
 	}
@@ -299,10 +317,14 @@ func writeHeader(w io.Writer, working, probed int, ping, speed bool) {
 		fmt.Fprintln(w, "# ENDPOINT PING = ICMP ping to the endpoint address from this host, no tunnel involved")
 	}
 	if ping {
-		fmt.Fprintf(w, "# TUN PING / LOSS = RTT and packet loss measured inside the tunnel, to %s\n", pingTarget)
+		fmt.Fprintf(w, "# TUN PING / LOSS = RTT and packet loss measured inside the tunnel, to %s\n", pingTargetLabel())
 	}
 	if speed {
-		fmt.Fprintln(w, "# SPEED = download throughput measured inside the tunnel; the ordering does not depend on it")
+		note := "the ordering does not depend on it"
+		if bestBy == bestKeySpeed {
+			note = "only the endpoints the tables pick are measured, so the rest sort last"
+		}
+		fmt.Fprintf(w, "# SPEED = download throughput measured inside the tunnel; %s\n", note)
 	}
 	fmt.Fprintln(w, "# SEEN AS = region external services see through the tunnel")
 	fmt.Fprintln(w, "# NODE / NODE LOCATION = Cloudflare WARP edge node the tunnel landed on, and where it sits")
@@ -367,6 +389,9 @@ func writeConsole(w io.Writer, ph phaseResult, r *lipgloss.Renderer, ping bool) 
 	writeJunkNote(w, st, ph.run)
 	fmt.Fprintf(w, "Nodes:     %s\n", st.accent.Render(uniqueSorted(working, func(r endpointResult) string { return r.exit.colo }, noFlag)))
 	fmt.Fprintf(w, "Seen as:   %s\n", st.accent.Render(uniqueSorted(working, func(r endpointResult) string { return r.exit.loc }, flagEmoji)))
+	if ping {
+		fmt.Fprintf(w, "Ping to:   %s\n", st.accent.Render(pingTargetLabel()))
+	}
 	fmt.Fprintf(w, "Working:   %s\n", st.ok.Render(strconv.Itoa(len(working)))+st.dim.Render(" / ")+strconv.Itoa(len(results))+" probed")
 	writeTornNote(w, st, len(torn))
 	writePicksTable(w, st, working, torn, ping)
@@ -419,6 +444,7 @@ type pickRow struct {
 	status  int
 	loss    float32
 	latency time.Duration
+	speed   float64
 }
 
 func tunCells(r endpointResult, ping bool) []string {
@@ -456,7 +482,7 @@ func writePicksTable(w io.Writer, st conStyles, working, torn []endpointResult, 
 			for _, r := range nodePicks(picks) {
 				cells := append([]string{subnet, r.endpoint, r.epPingStr()}, metrics(r)...)
 				cells = append(cells, exitRegion(r.exit), exitColo(r.exit), exitColoLocation(r.exit))
-				rows = append(rows, pickRow{cells, statusOK, r.loss, r.sortPing()})
+				rows = append(rows, pickRow{cells, statusOK, r.loss, r.sortPing(), r.speed})
 			}
 			continue
 		}
@@ -464,19 +490,22 @@ func writePicksTable(w io.Writer, st conStyles, working, torn []endpointResult, 
 			r := bestByPing(picks)
 			cells := append([]string{subnet, r.endpoint, r.epPingStr()}, metrics(r)...)
 			cells = append(cells, "torn down", "", "")
-			rows = append(rows, pickRow{cells, statusTorn, r.loss, r.sortPing()})
+			rows = append(rows, pickRow{cells, statusTorn, r.loss, r.sortPing(), r.speed})
 			continue
 		}
 		cells := []string{subnet, "no working endpoints", ""}
 		cells = append(cells, make([]string, len(tunHeaders(ping))+len(speedHeaders(speed)))...)
 		cells = append(cells, "", "", "")
-		rows = append(rows, pickRow{cells, statusNone, 0, 0})
+		rows = append(rows, pickRow{cells, statusNone, 0, 0, 0})
 	}
 	// Status first: a subnet with no result carries a synthetic 0% loss, which
 	// would otherwise sort it above a working endpoint that measured any loss.
 	sort.SliceStable(rows, func(i, j int) bool {
 		if rows[i].status != rows[j].status {
 			return rows[i].status < rows[j].status
+		}
+		if bestBy == bestKeySpeed && rows[i].speed != rows[j].speed {
+			return rows[i].speed > rows[j].speed
 		}
 		return lessLossDur(rows[i].loss, rows[i].latency, rows[j].loss, rows[j].latency)
 	})
@@ -536,10 +565,20 @@ func uniqueSorted(working []endpointResult, key func(endpointResult) string, fla
 	return strings.Join(vals, "  ")
 }
 
+var sweepingPorts bool
+
+func pickKey(result endpointResult) string {
+	if sweepingPorts {
+		return result.endpoint
+	}
+	return exitColo(result.exit)
+}
+
 func nodePicks(working []endpointResult) []endpointResult {
 	byNode := make(map[string][]endpointResult)
 	for _, r := range working {
-		byNode[exitColo(r.exit)] = append(byNode[exitColo(r.exit)], r)
+		key := pickKey(r)
+		byNode[key] = append(byNode[key], r)
 	}
 	picks := make([]endpointResult, 0, len(byNode))
 	for _, group := range byNode {

@@ -60,6 +60,7 @@ private data class ProtocolChoice(val id: String, val label: String)
 fun ScanScreen(viewModel: AppViewModel) {
     val operation by viewModel.operation.collectAsStateWithLifecycle()
     val toolProfile by viewModel.toolScanProfile.collectAsStateWithLifecycle()
+    val historyProfile by viewModel.historyScanProfile.collectAsStateWithLifecycle()
     var preset by rememberSaveable { mutableStateOf(ScanPreset.Standard) }
     var expert by rememberSaveable { mutableStateOf(false) }
     var protocol by rememberSaveable { mutableStateOf(DEFAULT_SCAN_PROTOCOL) }
@@ -80,6 +81,9 @@ fun ScanScreen(viewModel: AppViewModel) {
     var mtu by rememberSaveable { mutableStateOf("0") }
     var dns by rememberSaveable { mutableStateOf("") }
     var speedTest by rememberSaveable { mutableStateOf(false) }
+    var bestBy by rememberSaveable { mutableStateOf("ping") }
+    var sweepPorts by rememberSaveable { mutableStateOf("") }
+    var pingTarget by rememberSaveable { mutableStateOf("") }
     var nested by rememberSaveable { mutableStateOf(false) }
     var through by rememberSaveable { mutableStateOf("") }
     var innerProtocol by rememberSaveable { mutableStateOf("wg") }
@@ -98,6 +102,38 @@ fun ScanScreen(viewModel: AppViewModel) {
             masqueAttempts = profile.attempts.coerceAtLeast(1).toString()
         }
         viewModel.consumeToolScanProfile(profile)
+    }
+
+    LaunchedEffect(historyProfile) {
+        val profile = historyProfile ?: return@LaunchedEffect
+        val selected = profile.expert
+        preset = profile.preset
+        expert = true
+        protocol = selected.protocol
+        innerProtocol = selected.innerProtocol
+        ipv6 = selected.ipv6
+        port = selected.port.toString()
+        timeout = selected.timeoutSec.toString()
+        jobs = selected.jobs.toString()
+        target = selected.customTarget
+        tunnelPings = selected.tunnelPingCount.toString()
+        junkCount = selected.awgJunkCount.toString()
+        junkMin = selected.awgJunkMin.toString()
+        junkMax = selected.awgJunkMax.toString()
+        i1 = selected.awgI1
+        masqueSni = selected.masqueSni
+        masqueAttempts = selected.masqueAttempts.toString()
+        nodes = selected.includeNodes.joinToString(", ")
+        countries = selected.includeCountries.joinToString(", ")
+        mtu = selected.mtu.toString()
+        dns = selected.dns.joinToString(", ")
+        speedTest = selected.speedTest
+        bestBy = selected.bestBy
+        sweepPorts = selected.sweepPorts
+        pingTarget = selected.pingTarget
+        through = selected.throughEndpoint
+        nested = selected.throughEndpoint.isNotBlank()
+        viewModel.consumeHistoryScanProfile(profile)
     }
 
     fun startScan() {
@@ -124,6 +160,9 @@ fun ScanScreen(viewModel: AppViewModel) {
                 mtu = mtu.intOr(0),
                 dns = dns.stringList(),
                 speedTest = speedTest,
+                bestBy = bestBy,
+                sweepPorts = sweepPorts,
+                pingTarget = pingTarget.trim(),
                 throughEndpoint = if (nested) through.trim() else ""
             )
         )
@@ -149,6 +188,9 @@ fun ScanScreen(viewModel: AppViewModel) {
             .put("mtu", resolved.mtu)
             .put("dns", JSONArray(resolved.dns))
             .put("speedTest", resolved.speedTest)
+            .put("bestBy", resolved.bestBy)
+            .put("sweepPorts", resolved.sweepPorts)
+            .put("pingTarget", resolved.pingTarget)
             .put("throughEndpoint", resolved.throughEndpoint)
             .toString()
         viewModel.start(OperationRequest("scan", payload, preset.id, resolved.protocol))
@@ -216,7 +258,10 @@ fun ScanScreen(viewModel: AppViewModel) {
                         ).forEach { choice ->
                             FilterChip(
                                 selected = protocol == choice.id,
-                                onClick = { protocol = choice.id },
+                                onClick = {
+                                    protocol = choice.id
+                                    if (choice.id.startsWith("masque")) sweepPorts = ""
+                                },
                                 label = { Text(choice.label) }
                             )
                         }
@@ -227,9 +272,47 @@ fun ScanScreen(viewModel: AppViewModel) {
                         FilterChip(selected = ipv6, onClick = { ipv6 = true }, label = { Text(stringResource(R.string.ipv6)) })
                     }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        NumberField(port, { port = it }, R.string.port, Modifier.weight(1f))
+                        NumberField(
+                            port,
+                            { port = it },
+                            R.string.port,
+                            Modifier.weight(1f),
+                            enabled = sweepPorts.isEmpty()
+                        )
                         NumberField(timeout, { timeout = it }, R.string.timeout, Modifier.weight(1f))
                         NumberField(jobs, { jobs = it }, R.string.jobs, Modifier.weight(1f))
+                    }
+                    if (!protocol.startsWith("masque")) {
+                        Text(stringResource(R.string.port_scan_mode), style = MaterialTheme.typography.titleMedium)
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf(
+                                "" to R.string.port_scan_first,
+                                "open" to R.string.port_scan_open,
+                                "all" to R.string.port_scan_all
+                            ).forEach { (mode, label) ->
+                                FilterChip(
+                                    selected = sweepPorts == mode,
+                                    onClick = {
+                                        sweepPorts = mode
+                                        if (mode.isNotEmpty()) port = "0"
+                                    },
+                                    label = { Text(stringResource(label)) }
+                                )
+                            }
+                        }
+                        if (sweepPorts.isNotEmpty()) {
+                            Text(
+                                stringResource(
+                                    if (sweepPorts == "all") {
+                                        R.string.port_scan_all_notice
+                                    } else {
+                                        R.string.port_scan_open_notice
+                                    }
+                                ),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                     OutlinedTextField(
                         value = target,
@@ -239,6 +322,17 @@ fun ScanScreen(viewModel: AppViewModel) {
                         modifier = Modifier.fillMaxWidth()
                     )
                     NumberField(tunnelPings, { tunnelPings = it }, R.string.tunnel_pings, Modifier.fillMaxWidth())
+                    OutlinedTextField(
+                        value = pingTarget,
+                        onValueChange = {
+                            pingTarget = it
+                            if (it.isNotBlank() && tunnelPings.intOr(0) <= 0) tunnelPings = "10"
+                        },
+                        label = { Text(stringResource(R.string.ping_target)) },
+                        supportingText = { Text(stringResource(R.string.ping_target_description)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
                     if (protocol == "awg") {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             NumberField(junkCount, { junkCount = it }, "Jc", Modifier.weight(1f))
@@ -262,8 +356,26 @@ fun ScanScreen(viewModel: AppViewModel) {
                         NumberField(mtu, { mtu = it }, R.string.mtu, Modifier.weight(1f))
                         OutlinedTextField(value = dns, onValueChange = { dns = it }, label = { Text(stringResource(R.string.dns)) }, modifier = Modifier.weight(2f))
                     }
-                    ToggleRow(R.string.speed_test, speedTest) { speedTest = it }
-                    if (speedTest) {
+                    Text(stringResource(R.string.best_endpoint_by), style = MaterialTheme.typography.titleMedium)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(
+                            selected = bestBy == "ping",
+                            onClick = { bestBy = "ping" },
+                            label = { Text(stringResource(R.string.best_by_ping)) }
+                        )
+                        FilterChip(
+                            selected = bestBy == "speed",
+                            onClick = { bestBy = "speed" },
+                            label = { Text(stringResource(R.string.best_by_speed)) }
+                        )
+                    }
+                    ToggleRow(
+                        label = R.string.speed_test,
+                        checked = speedTest || bestBy == "speed",
+                        enabled = bestBy != "speed",
+                        onCheckedChange = { speedTest = it }
+                    )
+                    if (speedTest || bestBy == "speed") {
                         Surface(
                             modifier = Modifier.fillMaxWidth(),
                             shape = MaterialTheme.shapes.medium,
@@ -279,7 +391,13 @@ fun ScanScreen(viewModel: AppViewModel) {
                                     tint = MaterialTheme.colorScheme.onSecondaryContainer
                                 )
                                 Text(
-                                    stringResource(R.string.speed_test_selection_notice),
+                                    stringResource(
+                                        if (bestBy == "speed") {
+                                            R.string.best_by_speed_notice
+                                        } else {
+                                            R.string.speed_test_selection_notice
+                                        }
+                                    ),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSecondaryContainer
                                 )
@@ -319,30 +437,51 @@ private fun PresetChip(value: ScanPreset, selected: ScanPreset, label: Int, onSe
 }
 
 @Composable
-private fun ToggleRow(label: Int, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+private fun ToggleRow(
+    label: Int,
+    checked: Boolean,
+    enabled: Boolean = true,
+    onCheckedChange: (Boolean) -> Unit
+) {
     Row(
         Modifier
             .fillMaxWidth()
             .toggleable(
                 value = checked,
+                enabled = enabled,
                 role = Role.Switch,
                 onValueChange = onCheckedChange
             )
             .padding(vertical = 8.dp),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(stringResource(label), style = MaterialTheme.typography.bodyLarge)
-        Switch(checked = checked, onCheckedChange = null)
+        Text(
+            stringResource(label),
+            style = MaterialTheme.typography.bodyLarge,
+            color = if (enabled) {
+                MaterialTheme.colorScheme.onSurface
+            } else {
+                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+            }
+        )
+        Switch(checked = checked, onCheckedChange = null, enabled = enabled)
     }
 }
 
 @Composable
-private fun NumberField(value: String, onValueChange: (String) -> Unit, label: Int, modifier: Modifier) {
+private fun NumberField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: Int,
+    modifier: Modifier,
+    enabled: Boolean = true
+) {
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
         label = { Text(stringResource(label)) },
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        enabled = enabled,
         singleLine = true,
         modifier = modifier
     )

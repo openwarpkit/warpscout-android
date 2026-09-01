@@ -28,10 +28,12 @@ The first Android release targets:
 - Standard, Durable, and Full scan presets
 - WireGuard, AmneziaWG, MASQUE H3, and MASQUE H2
 - IPv4, IPv6, node filters, country filters, custom targets, MTU, DNS, and speed tests
+- Best endpoint selection by ping or speed, open/all port sweeping, and a custom in-tunnel ping target
 - AWG junk and I1 discovery
 - MASQUE SNI discovery
 - WARP-in-WARP scans
 - Scan history stored on the device
+- Display, copy, and one-tap reuse for all completed scan settings
 - WireGuard, AmneziaWG, usque, Mihomo, plain report, and best endpoint export
 - Loopback-only SOCKS server
 - English and Russian interface
