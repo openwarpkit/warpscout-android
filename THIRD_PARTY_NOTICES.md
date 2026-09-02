@@ -8,7 +8,7 @@ WARPSCOUT for Android includes or builds against third-party software. The corre
 | amneziawg-go | https://github.com/amnezia-vpn/amneziawg-go | MIT |
 | usque | https://github.com/Diniboy1123/usque | MIT |
 | Go Mobile | https://go.googlesource.com/mobile | BSD 3-Clause |
-| WireGuard Go | https://git.zx2c4.com/wireguard-go | MIT |
+| WireGuard Go | https://github.com/WireGuard/wireguard-go | MIT |
 | gVisor | https://github.com/google/gvisor | Apache License 2.0 |
 | Bubble Tea | https://github.com/charmbracelet/bubbletea | MIT |
 | Lip Gloss | https://github.com/charmbracelet/lipgloss | MIT |
