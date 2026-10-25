@@ -230,7 +230,7 @@ jobs:
             printf '## Commits\n\n'
             git -P log --no-merges \
               --pretty="- %s ([\`%h\`](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/%H))" \
-              "$RANGE" -- android mobileapi core internal/warpscout/mobile_backend.go scripts .github/workflows/android-release.yaml
+              "$RANGE" -- android mobileapi core internal/warpscout scripts .github/workflows/android-release.yaml
             printf '\n'
             gh api "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
               -f tag_name="${GITHUB_REF_NAME}" ${PREVIOUS:+-f previous_tag_name="$PREVIOUS"} \
