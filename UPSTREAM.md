@@ -13,6 +13,9 @@
 
 The current base matches upstream tag `v0.16.0`.
 
+The Android core also includes the registration API host change from upstream commit
+`3ab75254bfc88cc4dbe4c72c5ad882c73983be02`.
+
 ## Branch roles
 
 - `android`: default branch for the Android application and releases.

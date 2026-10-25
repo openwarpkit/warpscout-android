@@ -112,7 +112,7 @@ var masqueSNI = masqueDefaultSNI
 // tunnel type. Done through warpscout's own doJSON rather than usque's api
 // package so -proxy, -interface and the tunnel fallback keep working.
 const (
-	masqueRegURL           = "https://api.cloudflareclient.com/v0a4471/reg"
+	masqueRegURL           = "https://api.devices.cloudflare.com/v0a4471/reg"
 	masqueClientVersion    = "a-6.35-4471"
 	masqueUserAgent        = "WARP for Android"
 	masqueKeyType          = "secp256r1"

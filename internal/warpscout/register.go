@@ -24,9 +24,9 @@ import (
 )
 
 const (
-	regBaseURL      = "https://api.cloudflareclient.com/v0a4005/reg"
-	apiReachURL     = "https://api.cloudflareclient.com/"
-	apiHost         = "api.cloudflareclient.com"
+	regBaseURL      = "https://api.devices.cloudflare.com/v0a4005/reg"
+	apiReachURL     = "https://api.devices.cloudflare.com/"
+	apiHost         = "api.devices.cloudflare.com"
 	cfClientVersion = "a-6.11-2223"
 	cfUserAgent     = "okhttp/3.12.1"
 	defaultAccount  = "warpscout-account.json"
