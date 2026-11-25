@@ -7,14 +7,11 @@
 
 ## Current base
 
-- Upstream tag: `v0.16.0`
-- Upstream commit: `db4ac9ebae8d942191b8e8351f2c3a37a375bd66`
+- Upstream tag: `v0.17.0`
+- Upstream commit: `cd585e71022beccd242e10ee97c1a870fdadafc9`
 - Upstream branch: `master`
 
-The current base matches upstream tag `v0.16.0`.
-
-The Android core also includes the registration API host change from upstream commit
-`3ab75254bfc88cc4dbe4c72c5ad882c73983be02`.
+The current base includes the documentation commit after upstream tag `v0.17.0`.
 
 ## Branch roles
 

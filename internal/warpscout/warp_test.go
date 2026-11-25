@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -52,6 +53,169 @@ func TestWriteConsolePalette(t *testing.T) {
 	writeConsole(&colored, ph, rColor, false)
 	if !strings.Contains(colored.String(), "\033") {
 		t.Error("colored console output should contain ANSI escapes")
+	}
+}
+
+func jsonFixture() phaseResult {
+	return phaseResult{
+		run: protoRun{kindAWG, protoAWG},
+		results: []endpointResult{
+			{
+				ip:       netip.MustParseAddr("8.47.69.86"),
+				exit:     metaResult{loc: "RU", colo: "FRA", coloCity: "Frankfurt-am-Main", coloISO: "DE"},
+				endpoint: "8.47.69.86:2408",
+				epPing:   42 * time.Millisecond,
+				tunPing:  55 * time.Millisecond,
+				loss:     0.1,
+				measured: true,
+				ok:       true,
+				durable:  true,
+			},
+			{
+				ip:       netip.MustParseAddr("8.47.69.87"),
+				exit:     metaResult{loc: "RU", colo: "DME", coloCity: "Moscow", coloISO: "RU"},
+				endpoint: "8.47.69.87:2408",
+				measured: true,
+				loss:     1,
+				ok:       true,
+			},
+			{ip: netip.MustParseAddr("8.47.69.88")},
+		},
+	}
+}
+
+func TestWriteJSONResult(t *testing.T) {
+	var buf bytes.Buffer
+	if err := writeJSONResult(&buf, jsonFixture(), false); err != nil {
+		t.Fatal(err)
+	}
+	var res jsonResult
+	if err := json.Unmarshal(buf.Bytes(), &res); err != nil {
+		t.Fatalf("invalid json: %v\n%s", err, buf.String())
+	}
+	if res.Schema != jsonSchemaURL || res.Version != jsonVersion || res.Proto != protoAWG {
+		t.Errorf("header = %q %d %q", res.Schema, res.Version, res.Proto)
+	}
+	if res.Total != 3 || res.WorkingCount != 1 || len(res.Working) != 1 || len(res.Torn) != 1 || len(res.Picks) != 1 {
+		t.Fatalf("counts: total %d, working %d/%d, torn %d, picks %d", res.Total, res.WorkingCount, len(res.Working), len(res.Torn), len(res.Picks))
+	}
+	if res.Best == nil || *res.Best != "8.47.69.86:2408" {
+		t.Errorf("best = %v", res.Best)
+	}
+	w := res.Working[0]
+	if *w.SeenAs != "RU" || *w.Node != "FRA" || *w.NodeCountry != "DE" || w.Port != 2408 || w.IP != "8.47.69.86" {
+		t.Errorf("working endpoint fields: %+v", w)
+	}
+	if *w.PingMS != 42 || *w.TunPingMS != 55 || *w.LossPct != 10 || w.SpeedMbps != nil || w.Torn {
+		t.Errorf("working endpoint numbers: ping %v tun %v loss %v speed %v torn %v", *w.PingMS, *w.TunPingMS, *w.LossPct, w.SpeedMbps, w.Torn)
+	}
+	if torn := res.Torn[0]; !torn.Torn || torn.PingMS != nil || *torn.LossPct != 100 {
+		t.Errorf("torn endpoint: %+v", torn)
+	}
+	if !strings.Contains(buf.String(), `"speed_mbps": null`) {
+		t.Error("unmeasured numbers must be null, not omitted")
+	}
+}
+
+func TestJSONMatchesSchema(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("..", "..", "schema", "warpscout-v1.schema.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var schema struct {
+		Defs map[string]struct {
+			Required   []string       `json:"required"`
+			Properties map[string]any `json:"properties"`
+		} `json:"$defs"`
+	}
+	if err := json.Unmarshal(raw, &schema); err != nil {
+		t.Fatal(err)
+	}
+	ph := jsonFixture()
+	r := makeJSONResult(ph)
+	for def, v := range map[string]any{
+		"result":        r,
+		"endpoint":      r.Working[0],
+		"progressEvent": jsonProgressEvent{},
+		"endpointEvent": jsonEndpointEvent{},
+		"doneEvent":     jsonDoneEvent{},
+		"errorEvent":    jsonErrorEvent{},
+	} {
+		b, _ := json.Marshal(v)
+		var keys map[string]any
+		json.Unmarshal(b, &keys)
+		d := schema.Defs[def]
+		if len(keys) != len(d.Required) || len(keys) != len(d.Properties) {
+			t.Errorf("%s: emits %d keys, schema requires %d and defines %d", def, len(keys), len(d.Required), len(d.Properties))
+		}
+		for _, k := range d.Required {
+			if _, ok := keys[k]; !ok {
+				t.Errorf("%s: schema requires %q, Go does not emit it", def, k)
+			}
+		}
+	}
+}
+
+func TestJSONStreamEmitterConcurrency(t *testing.T) {
+	var buf bytes.Buffer
+	emitter := newJSONStreamEmitter(&buf)
+	emitter.emit(barBeginMsg{label: "Phase 2", total: 100})
+
+	const workers, perWorker = 10, 20
+	var wg sync.WaitGroup
+	wg.Add(workers)
+	for w := range workers {
+		go func() {
+			defer wg.Done()
+			for i := range perWorker {
+				emitter.emit(probedMsg{})
+				emitter.emit(foundMsg{result: endpointResult{endpoint: fmt.Sprintf("1.2.%d.%d:2408", w, i), ok: true, durable: true}})
+			}
+		}()
+	}
+	wg.Wait()
+
+	lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
+	if want := 1 + workers*perWorker*2; len(lines) != want {
+		t.Fatalf("got %d lines, want %d", len(lines), want)
+	}
+	for i, line := range lines {
+		var ev map[string]any
+		if err := json.Unmarshal([]byte(line), &ev); err != nil || ev["event"] == nil {
+			t.Fatalf("line %d is not an event: %q", i, line)
+		}
+	}
+}
+
+func TestJSONStreamEmitterEvents(t *testing.T) {
+	var buf bytes.Buffer
+	emitter := newJSONStreamEmitter(&buf)
+	emitter.emit(stepMsg{fail: true, summary: "no reachable WARP port"})
+	emitter.emit(barBeginMsg{label: "Phase 1: probing reachable WARP ports", total: 12})
+	emitter.emit(barBeginMsg{label: "Phase 2: verifying tunnels (proto=awg)", total: 3})
+	emitter.emit(barBeginMsg{label: "Speedtest phase: measuring picked endpoints one at a time", total: 3})
+	emitter.emit(probedMsg{})
+	emitter.emit(foundMsg{result: jsonFixture().results[0]})
+
+	lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
+	want := []string{
+		`{"event":"error","error":"no reachable WARP port"}`,
+		`{"event":"progress","phase":"ports","done":0,"total":12}`,
+		`{"event":"progress","phase":"tunnels","done":0,"total":3}`,
+		`{"event":"progress","phase":"speed","done":0,"total":3}`,
+		`{"event":"progress","phase":"speed","done":1,"total":3}`,
+	}
+	if len(lines) != len(want)+1 {
+		t.Fatalf("got %d lines, want %d:\n%s", len(lines), len(want)+1, buf.String())
+	}
+	for i, w := range want {
+		if lines[i] != w {
+			t.Errorf("line %d = %s, want %s", i, lines[i], w)
+		}
+	}
+	var ep jsonEndpointEvent
+	if err := json.Unmarshal([]byte(lines[len(want)]), &ep); err != nil || ep.Event != "endpoint" || *ep.Endpoint.Node != "FRA" {
+		t.Errorf("endpoint event: %s", lines[len(want)])
 	}
 }
 
@@ -219,7 +383,7 @@ func TestBestByPing(t *testing.T) {
 }
 
 func TestBaseUAPI(t *testing.T) {
-	wg, err := baseUAPI(false)
+	wg, err := baseUAPI(protoRun{kindWG, protoWG})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -230,7 +394,7 @@ func TestBaseUAPI(t *testing.T) {
 		t.Error("plain WireGuard config must not contain junk params")
 	}
 
-	awg, err := baseUAPI(true)
+	awg, err := baseUAPI(protoRun{kindAWG, protoAWG})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -560,7 +724,7 @@ func TestBaseUAPINoInitPacket(t *testing.T) {
 	defer func() { awgI1 = orig }()
 
 	awgI1 = ""
-	awg, err := baseUAPI(true)
+	awg, err := baseUAPI(protoRun{kindAWG, protoAWG})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -574,7 +738,7 @@ func TestBaseUAPIOverridesJunkParams(t *testing.T) {
 	defer func() { awgJc = orig }()
 
 	awgJc = 99
-	awg, err := baseUAPI(true)
+	awg, err := baseUAPI(protoRun{kindAWG, protoAWG})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1565,10 +1729,13 @@ func TestSocksHandshake(t *testing.T) {
 		"[2606:4700::1]:8": socksRequest(socksIPv6, netip.MustParseAddr("2606:4700::1").AsSlice(), 8),
 	}
 	for want, pipe := range cases {
-		got, err := socksHandshake(pipe)
+		cmd, got, err := socksHandshake(pipe)
 		if err != nil {
 			t.Errorf("socksHandshake(%s) failed: %v", want, err)
 			continue
+		}
+		if cmd != socksConnect {
+			t.Errorf("socksHandshake command = %d, want %d", cmd, socksConnect)
 		}
 		if got != want {
 			t.Errorf("socksHandshake = %q, want %q", got, want)
@@ -1581,18 +1748,74 @@ func TestSocksHandshake(t *testing.T) {
 
 func TestSocksHandshakeRejects(t *testing.T) {
 	truncated := &socksPipe{Reader: bytes.NewReader([]byte{5, 1, 0, 5, 1, 0, socksIPv4, 1, 2})}
-	if _, err := socksHandshake(truncated); err == nil {
+	if _, _, err := socksHandshake(truncated); err == nil {
 		t.Error("a truncated request must fail")
 	}
 
-	// UDP ASSOCIATE, the one command a client may try that this server does not serve.
-	udp := &socksPipe{Reader: bytes.NewReader([]byte{5, 1, 0, 5, 3, 0, socksIPv4, 1, 2, 3, 4, 0, 80})}
-	if _, err := socksHandshake(udp); err == nil {
-		t.Error("a non-CONNECT command must fail")
+	// BIND, the one command a client may try that this server does not serve.
+	bind := &socksPipe{Reader: bytes.NewReader([]byte{5, 1, 0, 5, 2, 0, socksIPv4, 1, 2, 3, 4, 0, 80})}
+	if _, _, err := socksHandshake(bind); err == nil {
+		t.Error("a command that is neither CONNECT nor UDP ASSOCIATE must fail")
 	}
-	reply := udp.out.Bytes()
+	reply := bind.out.Bytes()
 	if len(reply) != 12 || reply[3] != socksBadCmd {
-		t.Errorf("non-CONNECT reply = %v, want a %d at byte 3", reply, socksBadCmd)
+		t.Errorf("BIND reply = %v, want a %d at byte 3", reply, socksBadCmd)
+	}
+}
+
+func TestSocksUDPAssociateAccepted(t *testing.T) {
+	pipe := &socksPipe{Reader: bytes.NewReader([]byte{5, 1, 0, 5, socksUDPAssoc, 0, socksIPv4, 0, 0, 0, 0, 0, 0})}
+	cmd, _, err := socksHandshake(pipe)
+	if err != nil {
+		t.Fatalf("UDP ASSOCIATE must be accepted: %v", err)
+	}
+	if cmd != socksUDPAssoc {
+		t.Errorf("socksHandshake command = %d, want %d", cmd, socksUDPAssoc)
+	}
+}
+
+func TestSocksReplyCarriesBoundAddr(t *testing.T) {
+	var buf bytes.Buffer
+	if err := socksReply(&buf, socksOK, netip.MustParseAddrPort("127.0.0.1:9099")); err != nil {
+		t.Fatal(err)
+	}
+	want := []byte{socksVersion, socksOK, 0, socksIPv4, 127, 0, 0, 1, 0x23, 0x8b}
+	if !bytes.Equal(buf.Bytes(), want) {
+		t.Errorf("socksReply = %v, want %v", buf.Bytes(), want)
+	}
+
+	// A CONNECT reply keeps the placeholder: its client never reads the address.
+	buf.Reset()
+	if err := socksReply(&buf, socksOK, netip.AddrPort{}); err != nil {
+		t.Fatal(err)
+	}
+	if got := buf.Bytes(); len(got) != 10 || got[3] != socksIPv4 || got[4] != 0 {
+		t.Errorf("CONNECT reply = %v, want an all-zero IPv4 address", got)
+	}
+}
+
+func TestParseUDPRequest(t *testing.T) {
+	dg := append([]byte{0, 0, 0, socksDomain, 11}, "example.com"...)
+	dg = append(dg, 0, 53, 'q', 'u', 'e', 'r', 'y')
+	hdr, dst, payload, err := parseUDPRequest(dg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dst != "example.com:53" {
+		t.Errorf("dst = %q, want example.com:53", dst)
+	}
+	if string(payload) != "query" {
+		t.Errorf("payload = %q, want query", payload)
+	}
+	if !bytes.Equal(hdr, dg[:len(dg)-len(payload)]) {
+		t.Errorf("hdr = %v, want the whole datagram before the payload", hdr)
+	}
+
+	if _, _, _, err := parseUDPRequest([]byte{0, 0, 1, socksIPv4, 1, 2, 3, 4, 0, 53}); err == nil {
+		t.Error("a fragment must be refused")
+	}
+	if _, _, _, err := parseUDPRequest([]byte{0, 0, 0, socksIPv4, 1, 2}); err == nil {
+		t.Error("a truncated datagram must fail")
 	}
 }
 
@@ -1706,5 +1929,43 @@ func TestReadVersionCache(t *testing.T) {
 	}
 	if _, ok := readVersionCache(filepath.Join(t.TempDir(), "absent"), time.Hour); ok {
 		t.Error("a missing cache must miss")
+	}
+}
+
+func TestAWG31Params(t *testing.T) {
+	orig := awg31Ranges[0].value
+	defer func() { awg31Ranges[0].value, awgDisableCookies, awgRandomTrailers = orig, false, false }()
+	awg31Ranges[0].value, awgDisableCookies, awgRandomTrailers = "16-64", true, true
+
+	awg, err := baseUAPI(protoRun{kindAWG, protoAWG})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(awg, "content_padding_addition") || strings.Contains(awg, "disable_cookies") {
+		t.Errorf("awg must not carry 3.1 params: %q", awg)
+	}
+	awg31, err := baseUAPI(protoRun{kindAWG31, protoAWG31})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"jc=", "content_padding_addition=16-64", "disable_cookies=true", "random_trailers=true"} {
+		if !strings.Contains(awg31, want) {
+			t.Errorf("awg31 UAPI missing %q: %q", want, awg31)
+		}
+	}
+	yaml, err := renderMihomoConf(options{confType: confTypeMihomo}, "188.114.98.5:2408", protoRun{kindAWG31, protoAWG31})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"version: 3", "content-padding-addition: 16-64", "disable-cookies: true", "random-trailers: true"} {
+		if !strings.Contains(string(yaml), want) {
+			t.Errorf("awg31 mihomo config missing %q:\n%s", want, yaml)
+		}
+	}
+	conf := renderConf(options{}, "188.114.98.5:2408", protoRun{kindAWG31, protoAWG31})
+	for _, want := range []string{"Jc = ", "ContentPaddingAddition = 16-64", "DisableCookies = on", "RandomTrailers = on"} {
+		if !strings.Contains(conf, want) {
+			t.Errorf("awg31 conf missing %q:\n%s", want, conf)
+		}
 	}
 }

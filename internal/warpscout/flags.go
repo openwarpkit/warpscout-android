@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/amnezia-vpn/amneziawg-go/v3/device"
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -64,6 +65,8 @@ type options struct {
 	full           bool
 	plain          bool
 	emoji          bool
+	jsonOut        bool
+	streamJSON     bool
 }
 
 type flagSpec struct {
@@ -101,7 +104,7 @@ var (
 
 	nestGroup = flagGroup{"WARP-in-WARP", []flagSpec{
 		{"", "through", "ADDR", "scan from inside a tunnel to this endpoint (IP or ip:port, as -best prints): results then exit through that endpoint's region (-tunnel-jobs drops to 1)"},
-		{"", "inner-proto", "wg|awg", "protocol of the tunnels being scanned, which run inside the -through one where DPI cannot see them; -proto stays the outer tunnel, the one that crosses your network"},
+		{"", "inner-proto", "wg|awg|awg31", "protocol of the tunnels being scanned, which run inside the -through one where DPI cannot see them; -proto stays the outer tunnel, the one that crosses your network"},
 	}}
 
 	masqueGroup = flagGroup{"MASQUE", []flagSpec{
@@ -110,7 +113,7 @@ var (
 	}}
 
 	protoGroup = flagGroup{"Protocol", []flagSpec{
-		{"p", "proto", "wg|awg|masque|masque-h2", "tunnel protocol: wg (WireGuard), awg (AmneziaWG), masque (CONNECT-IP over QUIC) or masque-h2 (CONNECT-IP over TCP)"},
+		{"p", "proto", "wg|awg|awg31|masque|masque-h2", "tunnel protocol: wg (WireGuard), awg (AmneziaWG), awg31 (AmneziaWG with the 3.1 parameters), masque (CONNECT-IP over QUIC) or masque-h2 (CONNECT-IP over TCP)"},
 	}}
 
 	awgGroup = flagGroup{"AmneziaWG obfuscation parameters", []flagSpec{
@@ -122,6 +125,8 @@ var (
 		{"", "jmax", "N", "max junk packet size"},
 		{"", "i1", "PKT", "custom init packet, or \"none\" to send none (default: built-in QUIC probe)"},
 	}}
+
+	awg31Group = flagGroup{"AmneziaWG 3.1 parameters (-proto awg31), RANGE is N or MIN-MAX", awg31Specs()}
 
 	outputGroup = flagGroup{"Output", []flagSpec{
 		{"o", "output", "FILE", "full per-endpoint report file (default warpscout-report-<timestamp>.txt)"},
@@ -140,6 +145,8 @@ var (
 		{"", "best-by", "ping|speed", "what makes an endpoint best, both for -best/-conf and for the order of every table: lowest ping (default) or highest download speed (runs the -speed phase, so it takes much longer)"},
 		{"", "plain", "", "force plain line output (no live TUI)"},
 		{"", "emoji", "", "prefix the colo region with a country flag emoji (rendering depends on the terminal)"},
+		{"", "json", "", "print scan results as JSON on stdout"},
+		{"", "stream-json", "", "stream progress and results as newline-delimited JSON on stdout (for GUIs)"},
 	}}
 
 	registerGroup = flagGroup{"Registration", append([]flagSpec{
@@ -240,6 +247,25 @@ func addAWGFlags(fs *flag.FlagSet, o *options) {
 	addI1GenFlags(fs, o)
 }
 
+func awg31Specs() []flagSpec {
+	var specs []flagSpec
+	for _, p := range awg31Ranges {
+		specs = append(specs, flagSpec{"", p.flag, "RANGE", p.help})
+	}
+	return append(specs,
+		flagSpec{"", "disable-cookies", "", "never send cookie replies, a fingerprint under active probing"},
+		flagSpec{"", "random-trailers", "", "append random bytes to handshake packets and zeroes inside data packets"},
+	)
+}
+
+func addAWG31Flags(fs *flag.FlagSet) {
+	for _, p := range awg31Ranges {
+		fs.StringVar(&p.value, p.flag, "", "")
+	}
+	fs.BoolVar(&awgDisableCookies, "disable-cookies", false, "")
+	fs.BoolVar(&awgRandomTrailers, "random-trailers", false, "")
+}
+
 func addI1GenFlags(fs *flag.FlagSet, o *options) {
 	fs.StringVar(&o.genI1, "gen-i1", "", "")
 	fs.StringVar(&o.i1Host, "i1-sni", "", "")
@@ -248,6 +274,7 @@ func addI1GenFlags(fs *flag.FlagSet, o *options) {
 func setupScanFlags(fs *flag.FlagSet, o *options) {
 	addNetFlags(fs, o)
 	addAWGFlags(fs, o)
+	addAWG31Flags(fs)
 	intFlag(fs, &o.tunnelParallel, defaultTunnelJobs, "jt", "tunnel-jobs")
 	intFlagValidate(fs, &o.perSubnet, 5, "n", "sample", validateSample)
 	fs.IntVar(&o.port, "port", 0, "")
@@ -278,6 +305,8 @@ func setupScanFlags(fs *flag.FlagSet, o *options) {
 	fs.BoolVar(&o.noDNS, "no-dns", false, "")
 	fs.BoolVar(&o.plain, "plain", false, "")
 	fs.BoolVar(&o.emoji, "emoji", false, "")
+	fs.BoolVar(&o.jsonOut, "json", false, "")
+	fs.BoolVar(&o.streamJSON, "stream-json", false, "")
 	o.wantMeta = true
 }
 
@@ -325,6 +354,7 @@ func setupSocksFlags(fs *flag.FlagSet, o *options) {
 	intFlag(fs, &o.port, defaultSocksPort, "P", "port")
 	strFlag(fs, &o.proto, protoWG, "p", "proto")
 	addAWGFlags(fs, o)
+	addAWG31Flags(fs)
 	fs.StringVar(&masqueSNI, "masque-sni", masqueDefaultSNI, "")
 	fs.IntVar(&masqueAttempts, "masque-attempts", masqueDefaultAttempts, "")
 	fs.StringVar(&o.through, "through", "", "")
@@ -372,7 +402,7 @@ func applyCommonFlags(fs *flag.FlagSet, o *options) {
 		os.Exit(2)
 	}
 	if o.genJunk {
-		if o.proto != protoAWG {
+		if !isAWGName(o.proto) {
 			fmt.Fprintln(os.Stderr, "-gen-junk needs AmneziaWG: use -proto awg")
 			os.Exit(2)
 		}
@@ -380,6 +410,7 @@ func applyCommonFlags(fs *flag.FlagSet, o *options) {
 	}
 	applyGenI1(fs, o)
 	validateJunkParams()
+	validateAWG31(fs, *o)
 	validateMTU(*o)
 	validateConfType(*o)
 	validateSweepPorts(*o)
@@ -406,8 +437,8 @@ func validateThrough(fs *flag.FlagSet, o options) {
 		return
 	}
 	for _, f := range []struct{ name, value string }{{"-proto", o.proto}, {"-inner-proto", o.innerProto}} {
-		if f.value != protoWG && f.value != protoAWG {
-			fmt.Fprintf(os.Stderr, "-through nests two WireGuard tunnels: %s must be %s or %s, not %q\n", f.name, protoWG, protoAWG, f.value)
+		if f.value != protoWG && !isAWGName(f.value) {
+			fmt.Fprintf(os.Stderr, "-through nests two WireGuard tunnels: %s must be %s, %s or %s, not %q\n", f.name, protoWG, protoAWG, protoAWG31, f.value)
 			os.Exit(2)
 		}
 	}
@@ -488,7 +519,7 @@ func applyGenI1(fs *flag.FlagSet, o *options) {
 		}
 		return
 	}
-	if o.proto != protoAWG {
+	if !isAWGName(o.proto) {
 		fmt.Fprintln(os.Stderr, "-gen-i1 needs AmneziaWG: use -proto awg")
 		os.Exit(2)
 	}
@@ -540,6 +571,27 @@ func validateJunkParams() {
 	}
 }
 
+func validateAWG31(fs *flag.FlagSet, o options) {
+	uses := o.proto == protoAWG31 || o.innerProto == protoAWG31
+	explicit := explicitFlags(fs)
+	for _, s := range awg31Specs() {
+		if explicit[s.long] && !uses {
+			fmt.Fprintf(os.Stderr, "-%s is an AmneziaWG 3.1 parameter: use -proto %s\n", s.long, protoAWG31)
+			os.Exit(2)
+		}
+	}
+	for _, p := range awg31Ranges {
+		if p.value == "" {
+			continue
+		}
+		var r device.UintRange
+		if err := r.FromString(p.value); err != nil {
+			fmt.Fprintf(os.Stderr, "-%s %q must be N or MIN-MAX: %v\n", p.flag, p.value, err)
+			os.Exit(2)
+		}
+	}
+}
+
 func validateMTU(o options) {
 	if o.mtu == 0 {
 		return
@@ -555,6 +607,14 @@ func validateMTU(o options) {
 func rejectBestConfStdout(o options) {
 	if o.best && o.conf == confStdout {
 		fmt.Fprintln(os.Stderr, "-best and -conf - both write to stdout: use one or the other")
+		os.Exit(2)
+	}
+	if (o.jsonOut || o.streamJSON) && (o.best || o.conf == confStdout) {
+		fmt.Fprintln(os.Stderr, "-json/-stream-json writes to stdout: cannot combine with -best or -conf -")
+		os.Exit(2)
+	}
+	if o.jsonOut && o.streamJSON {
+		fmt.Fprintln(os.Stderr, "-json and -stream-json: use one or the other")
 		os.Exit(2)
 	}
 }
