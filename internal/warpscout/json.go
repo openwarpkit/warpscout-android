@@ -1,7 +1,9 @@
 package warpscout
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"math"
 	"net/netip"
@@ -11,6 +13,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/vernette/warpscout/core"
 )
 
 const (
@@ -143,12 +146,97 @@ func makeJSONResult(ph phaseResult) jsonResult {
 }
 
 func writeJSONResult(w io.Writer, ph phaseResult, stream bool) error {
+	result := makeJSONResult(ph)
 	if stream {
-		return json.NewEncoder(w).Encode(jsonDoneEvent{Event: "done", Result: makeJSONResult(ph)})
+		return json.NewEncoder(w).Encode(jsonDoneEvent{Event: "done", Result: result})
 	}
+	return writePrettyJSONResult(w, result)
+}
+
+func writePrettyJSONResult(w io.Writer, result jsonResult) error {
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
-	return enc.Encode(makeJSONResult(ph))
+	return enc.Encode(result)
+}
+
+func RenderJSONReport(report core.ScanReport, scan core.ScanOptions) (string, error) {
+	if _, err := parseProto(string(report.Protocol)); err != nil {
+		return "", err
+	}
+	result := jsonResult{
+		Schema:  jsonSchemaURL,
+		Version: jsonVersion,
+		Proto:   string(report.Protocol),
+		Total:   max(report.TestedCount, len(report.Results)),
+		Picks:   []jsonEndpoint{},
+		Working: []jsonEndpoint{},
+		Torn:    []jsonEndpoint{},
+	}
+	picked := make(map[string]bool)
+	for _, saved := range report.Results {
+		if !saved.Working {
+			continue
+		}
+		node := jsonReportCode(saved.Node, 3)
+		city := strings.TrimSuffix(saved.NodeLocation, ", "+saved.Country)
+		if city == saved.Country {
+			city = ""
+		}
+		ep := toJSONEndpoint(endpointResult{
+			endpoint: saved.Endpoint,
+			exit: metaResult{
+				loc:      jsonReportCode(saved.Region, 2),
+				colo:     node,
+				coloCity: city,
+				coloISO:  jsonReportCode(saved.Country, 2),
+			},
+			epPing:   time.Duration(math.Round(saved.EndpointPingMS * float64(time.Millisecond))),
+			tunPing:  time.Duration(math.Round(saved.TunnelPingMS * float64(time.Millisecond))),
+			loss:     float32(saved.LossPercent / 100),
+			speed:    saved.SpeedMbps,
+			measured: scan.TunnelPingCount > 0 || saved.TunnelPingMS > 0 || saved.LossPercent > 0 || !saved.Durable,
+			ok:       true,
+			durable:  saved.Durable,
+		})
+		if ep.Port == 0 {
+			return "", fmt.Errorf("invalid report endpoint %q", saved.Endpoint)
+		}
+		if ep.Torn {
+			result.Torn = append(result.Torn, ep)
+			continue
+		}
+		result.Working = append(result.Working, ep)
+		key := node
+		if scan.SweepPorts != "" {
+			key = ep.Endpoint
+		}
+		if !picked[key] {
+			result.Picks = append(result.Picks, ep)
+			picked[key] = true
+		}
+	}
+	result.WorkingCount = len(result.Working)
+	if result.WorkingCount > 0 {
+		result.Best = &result.Working[0].Endpoint
+	}
+	var out bytes.Buffer
+	if err := writePrettyJSONResult(&out, result); err != nil {
+		return "", err
+	}
+	return out.String(), nil
+}
+
+func jsonReportCode(value string, length int) string {
+	value = strings.ToUpper(strings.TrimSpace(value))
+	if len(value) != length {
+		return ""
+	}
+	for _, char := range value {
+		if char < 'A' || char > 'Z' {
+			return ""
+		}
+	}
+	return value
 }
 
 type jsonStreamEmitter struct {

@@ -173,6 +173,7 @@
     <string name="report_title">Scan report</string>
     <string name="report_title_with_date">Report %1$s</string>
     <string name="report_section">Report</string>
+    <string name="export_report_json">Export JSON</string>
     <string name="scan_settings">Scan settings</string>
     <string name="copy_scan_settings">Copy all settings</string>
     <string name="use_scan_settings">Apply to scan</string>

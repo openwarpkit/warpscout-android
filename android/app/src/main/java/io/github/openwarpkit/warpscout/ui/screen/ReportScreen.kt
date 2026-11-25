@@ -182,6 +182,17 @@ fun ReportScreen(
     val copyScope = rememberCoroutineScope()
     val settingsClipboardLabel = stringResource(R.string.scan_settings)
     val settingsCopiedMessage = stringResource(R.string.scan_settings_copied)
+    val exportFailureMessage = stringResource(R.string.operation_failed)
+    var pendingJsonReportId by rememberSaveable { mutableStateOf<Long?>(null) }
+    val createJsonDocument = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        val reportId = pendingJsonReportId
+        pendingJsonReportId = null
+        if (uri != null && reportId != null) {
+            viewModel.saveReportJson(reportId, uri, exportFailureMessage)
+        }
+    }
     val date = item?.let {
         DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(it.startedAt))
     }
@@ -235,6 +246,10 @@ fun ReportScreen(
                     .padding(padding),
                 onOpen = { viewModel.openReport(item) },
                 onShare = { viewModel.shareReport(item) },
+                onSaveJson = {
+                    pendingJsonReportId = item.id
+                    createJsonDocument.launch("warpscout-report-${item.id}.json")
+                },
                 onSaveImage = viewModel::saveReportImage,
                 onShareImage = viewModel::shareReportImage,
                 onApplySettings = {
@@ -264,6 +279,7 @@ private fun ReportContent(
     modifier: Modifier,
     onOpen: () -> Unit,
     onShare: () -> Unit,
+    onSaveJson: () -> Unit,
     onSaveImage: (ReportImageDocument, Uri) -> Unit,
     onShareImage: (ReportImageDocument) -> Unit,
     onApplySettings: () -> Unit,
@@ -386,6 +402,9 @@ private fun ReportContent(
                     }
                     OutlinedButton(onClick = onShare, enabled = actionsEnabled) {
                         Text(stringResource(R.string.share_txt))
+                    }
+                    OutlinedButton(onClick = onSaveJson, enabled = actionsEnabled) {
+                        Text(stringResource(R.string.export_report_json))
                     }
                 }
                 OutlinedButton(onClick = { tableExpanded = !tableExpanded }) {

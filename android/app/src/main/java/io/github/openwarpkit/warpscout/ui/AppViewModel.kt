@@ -38,6 +38,7 @@ import io.github.openwarpkit.warpscout.data.compareVersions
 import io.github.openwarpkit.warpscout.data.shouldAutomaticallyCheck
 import io.github.openwarpkit.warpscout.data.toAvailableUpdate
 import io.github.openwarpkit.warpscout.service.UpdateNotifier
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -259,6 +260,18 @@ class AppViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching { exportManager.openReport(item) }
                 .onFailure { mutableExportError.value = it.message }
+        }
+    }
+
+    fun saveReportJson(historyId: Long, uri: Uri, failureMessage: String) {
+        mutableExportError.value = null
+        viewModelScope.launch {
+            runCatching {
+                exportManager.saveReportJson(requireNotNull(historyDao.find(historyId)), uri)
+            }.onFailure {
+                if (it is CancellationException) throw it
+                mutableExportError.value = failureMessage
+            }
         }
     }
 

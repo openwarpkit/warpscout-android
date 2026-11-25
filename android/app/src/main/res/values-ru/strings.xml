@@ -173,6 +173,7 @@
     <string name="report_title">Отчёт сканирования</string>
     <string name="report_title_with_date">Отчёт %1$s</string>
     <string name="report_section">Отчёт</string>
+    <string name="export_report_json">Экспорт JSON</string>
     <string name="scan_settings">Настройки сканирования</string>
     <string name="copy_scan_settings">Скопировать все настройки</string>
     <string name="use_scan_settings">Применить к сканированию</string>

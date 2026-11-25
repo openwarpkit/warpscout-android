@@ -37,6 +37,21 @@ class ExportManager @Inject constructor(
         share(export.fileName, export.uri, "text/plain")
     }
 
+    suspend fun saveReportJson(item: HistoryEntity, uri: Uri) {
+        val report = JSONObject(requireNotNull(item.resultJson))
+        if (report.optString("protocol").isBlank()) {
+            report.put("protocol", item.protocol)
+        }
+        if (report.optInt("testedCount") <= 0) {
+            report.put("testedCount", item.progressCompleted)
+        }
+        val payload = JSONObject()
+            .put("report", report)
+            .put("options", JSONObject(item.optionsJson.ifBlank { "{}" }))
+            .put("format", "json")
+        saveText(render("render-report", "", payload), uri)
+    }
+
     suspend fun shareReportImage(document: ReportImageDocument) {
         val fileName = "warpscout-report-${document.historyId}.png"
         val uri = writeReportImage(fileName, document)
@@ -53,9 +68,11 @@ class ExportManager @Inject constructor(
         share(document.fileName, write(document.fileName, document.content), "text/plain")
     }
 
-    suspend fun saveText(document: TextDocument, uri: Uri) = withContext(Dispatchers.IO) {
+    suspend fun saveText(document: TextDocument, uri: Uri) = saveText(document.content, uri)
+
+    private suspend fun saveText(content: String, uri: Uri) = withContext(Dispatchers.IO) {
         context.contentResolver.openOutputStream(uri, "wt")?.bufferedWriter()?.use {
-            it.write(document.content)
+            it.write(content)
         } ?: error("Unable to open the selected file")
     }
 

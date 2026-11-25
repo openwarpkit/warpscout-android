@@ -44,7 +44,9 @@ type errorEvent struct {
 }
 
 type reportRequest struct {
-	Report core.ScanReport `json:"report"`
+	Report  core.ScanReport  `json:"report"`
+	Format  string           `json:"format"`
+	Options core.ScanOptions `json:"options"`
 }
 
 type configRequest struct {
@@ -120,7 +122,11 @@ func Start(requestJSON string, listener Listener) (err error) {
 		if err := json.Unmarshal(command.Payload, &input); err != nil {
 			return invalidPayload(listener, err)
 		}
-		result, err = activeEngine.RenderReport(input.Report)
+		if input.Format == "json" {
+			result, err = warpscout.RenderJSONReport(input.Report, input.Options)
+		} else {
+			result, err = activeEngine.RenderReport(input.Report)
+		}
 	case core.OperationConfig:
 		var input configRequest
 		if err := json.Unmarshal(command.Payload, &input); err != nil {
