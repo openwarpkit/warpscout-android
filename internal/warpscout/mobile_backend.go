@@ -122,7 +122,7 @@ func (b *MobileBackend) Scan(ctx context.Context, input core.Account, scan core.
 	if err != nil {
 		return core.ScanReport{}, operationFailure(ctx, "scan_failed", err, true)
 	}
-	progress.completed, progress.total = len(ph.results), len(ph.results)
+	testedCount := len(ph.results)
 	if filtered(opts) {
 		ph = applyFilters(ph, opts)
 	}
@@ -139,11 +139,12 @@ func (b *MobileBackend) Scan(ctx context.Context, input core.Account, scan core.
 		selectedI1 = awgI1
 	}
 	return core.ScanReport{
-		AWGI1:      selectedI1,
-		Protocol:   core.Protocol(run.name),
-		StartedAt:  started,
-		FinishedAt: time.Now().UTC(),
-		Results:    results,
+		AWGI1:       selectedI1,
+		Protocol:    core.Protocol(run.name),
+		StartedAt:   started,
+		FinishedAt:  time.Now().UTC(),
+		TestedCount: testedCount,
+		Results:     results,
 	}, nil
 }
 

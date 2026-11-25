@@ -166,6 +166,7 @@ class OperationService : Service() {
                             .toString()
                     }
                     val results = payload.optJSONArray("results")
+                    val testedCount = payload.optInt("testedCount").takeIf { it > 0 }
                     var working = 0
                     var tornDown = 0
                     var bestEndpoint: String? = null
@@ -184,6 +185,8 @@ class OperationService : Service() {
                     operations.update {
                         it.copy(
                             latestResultJson = payloadJson,
+                            completed = testedCount ?: it.completed,
+                            total = testedCount ?: it.total,
                             working = working,
                             tornDown = tornDown,
                             bestEndpoint = bestEndpoint

@@ -272,6 +272,7 @@ private fun ReportContent(
 ) {
     val results = remember(item.resultJson) { parseReport(item.resultJson.orEmpty()) }
     val working = results.count { it.working && it.durable }
+    val tested = item.progressCompleted.coerceAtLeast(results.size)
     val tableScroll = rememberScrollState()
     var tableExpanded by rememberSaveable(item.id) { mutableStateOf(false) }
     var hideEmptyColumns by rememberSaveable(item.id) { mutableStateOf(true) }
@@ -318,6 +319,7 @@ private fun ReportContent(
         imageTitle,
         imageProtocol,
         imageWorking,
+        tested,
         imageDate,
         workingLabel,
         tornDownLabel,
@@ -328,7 +330,7 @@ private fun ReportContent(
             title = imageTitle,
             metadata = listOf(
                 imageProtocol to item.protocol.uppercase(),
-                imageWorking to "$working / ${results.size}",
+                imageWorking to "$working / $tested",
                 imageDate to formattedDate
             ),
             columns = visibleColumns.mapIndexed { index, column ->
@@ -372,7 +374,7 @@ private fun ReportContent(
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)
             ) {
                 Text(
-                    text = stringResource(R.string.report_summary, working, results.size),
+                    text = stringResource(R.string.report_summary, working, tested),
                     style = MaterialTheme.typography.bodyLarge
                 )
                 FlowRow(

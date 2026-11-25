@@ -88,11 +88,12 @@ type EndpointResult struct {
 }
 
 type ScanReport struct {
-	AWGI1      string           `json:"awgI1,omitempty"`
-	Protocol   Protocol         `json:"protocol"`
-	StartedAt  time.Time        `json:"startedAt"`
-	FinishedAt time.Time        `json:"finishedAt"`
-	Results    []EndpointResult `json:"results"`
+	AWGI1       string           `json:"awgI1,omitempty"`
+	Protocol    Protocol         `json:"protocol"`
+	StartedAt   time.Time        `json:"startedAt"`
+	FinishedAt  time.Time        `json:"finishedAt"`
+	TestedCount int              `json:"testedCount,omitempty"`
+	Results     []EndpointResult `json:"results"`
 }
 
 type ProgressEvent struct {
